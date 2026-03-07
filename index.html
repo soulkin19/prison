@@ -3,263 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Delta Force: Tide Prison Escape</title>
+    <title>Delta Force: Tide Prison 3D - iPad Edition</title>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #000;
-            color: #fff;
-            font-family: 'Arial', sans-serif;
-            overflow: hidden;
-            touch-action: none;
-        }
-        #gameCanvas {
-            display: block;
-        }
-        #ui-layer {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            pointer-events: none;
-            text-shadow: 2px 2px 4px #000;
-        }
-        #mobile-warning {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9);
-            z-index: 100;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            padding: 20px;
-        }
-        /* ジョイスティックの見た目 */
-        #joystick-container {
-            position: absolute;
-            bottom: 50px;
-            left: 50px;
-            width: 100px;
-            height: 100px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-            display: none; /* スマホのみ表示 */
-        }
-        #joystick-knob {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            background: rgba(255, 255, 255, 0.5);
-            border-radius: 50%;
-            top: 30px;
-            left: 30px;
-        }
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: sans-serif; }
+        #ui { position: absolute; top: 20px; left: 20px; color: #0f0; pointer-events: none; text-shadow: 0 0 5px #000; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; border: 2px solid rgba(0,255,0,0.5); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+        
+        /* ジョイスティック（iPad用） */
+        .joystick { position: absolute; bottom: 50px; width: 120px; height: 120px; background: rgba(255,255,255,0.1); border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); }
+        #move-joy { left: 50px; }
+        #look-joy { right: 50px; }
+        .knob { position: absolute; width: 50px; height: 50px; background: rgba(0,255,0,0.3); border-radius: 50%; top: 35px; left: 35px; }
     </style>
 </head>
 <body>
 
-<div id="mobile-warning">
-    <h1>MOBILE ONLY</h1>
-    <p>このゲームはモバイルデバイス専用です。<br>スマートフォンのブラウザで開いてください。</p>
+<div id="ui">
+    <h2>TIDE PRISON: ESCAPE</h2>
+    <div id="pos">POS: 0, 0</div>
+    <div id="msg">出口の光を探せ...</div>
 </div>
+<div id="crosshair"></div>
 
-<div id="ui-layer">
-    <div>MISSION: タイドプリズンから脱獄せよ</div>
-    <div id="status">位置: (0, 0)</div>
-    <div id="distance">脱出まで: ---m</div>
-</div>
+<div id="move-joy" class="joystick"><div id="move-knob" class="knob"></div></div>
+<div id="look-joy" class="joystick"><div id="look-knob" class="knob"></div></div>
 
-<div id="joystick-container">
-    <div id="joystick-knob"></div>
-</div>
+<script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
 
-<canvas id="gameCanvas"></canvas>
+<script type="module">
+    import * as THREE from 'three';
 
-<script>
-    // モバイル判定
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (!isMobile) {
-        document.getElementById('mobile-warning').style.display = 'flex';
-    } else {
-        document.getElementById('joystick-container').style.display = 'block';
-    }
-
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const statusEl = document.getElementById('status');
-    const distanceEl = document.getElementById('distance');
-
-    // ゲーム設定
-    const world = {
-        width: 5000,  // 広大なマップ
-        height: 5000,
-        gridSize: 100
-    };
-
-    const player = {
-        x: 2500,
-        y: 2500,
-        radius: 15,
-        speed: 4,
-        vx: 0,
-        vy: 0,
-        color: '#00ff00'
-    };
-
-    const exit = {
-        x: 100,
-        y: 100,
-        radius: 50
-    };
-
-    // 簡易的な障害物（壁）の生成
-    const walls = [];
-    for(let i=0; i<100; i++) {
-        walls.push({
-            x: Math.random() * world.width,
-            y: Math.random() * world.height,
-            w: 100 + Math.random() * 300,
-            h: 100 + Math.random() * 300
-        });
-    }
-
-    // カメラ
-    const camera = {
-        x: 0,
-        y: 0
-    };
-
-    // ジョイスティック制御
-    const joystick = {
-        active: false,
-        originX: 100,
-        originY: 0, // 動的に設定
-        currX: 0,
-        currY: 0,
-        maxRadius: 50
-    };
-
-    function init() {
-        resize();
-        window.addEventListener('resize', resize);
-        
-        canvas.addEventListener('touchstart', handleTouch);
-        canvas.addEventListener('touchmove', handleTouch);
-        canvas.addEventListener('touchend', () => {
-            player.vx = 0;
-            player.vy = 0;
-            document.getElementById('joystick-knob').style.transform = `translate(0px, 0px)`;
-        });
-
-        requestAnimationFrame(update);
-    }
-
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-
-    function handleTouch(e) {
-        e.preventDefault();
-        const touch = e.touches[0];
-        const rect = canvas.getBoundingClientRect();
-        
-        // ジョイスティックの基準位置（画面左下付近）
-        const jBaseX = 100;
-        const jBaseY = window.innerHeight - 100;
-
-        let dx = touch.clientX - jBaseX;
-        let dy = touch.clientY - jBaseY;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-
-        if (dist > 0) {
-            const angle = Math.atan2(dy, dx);
-            const moveDist = Math.min(dist, joystick.maxRadius);
-            
-            // ノブの表示更新
-            const knobX = Math.cos(angle) * moveDist;
-            const knobY = Math.sin(angle) * moveDist;
-            document.getElementById('joystick-knob').style.transform = `translate(${knobX}px, ${knobY}px)`;
-
-            // プレイヤーの速度設定
-            player.vx = Math.cos(angle) * player.speed * (moveDist / joystick.maxRadius);
-            player.vy = Math.sin(angle) * player.speed * (moveDist / joystick.maxRadius);
-        }
-    }
-
-    function update() {
-        // 移動
-        player.x += player.vx;
-        player.y += player.vy;
-
-        // ワールド境界制限
-        player.x = Math.max(0, Math.min(world.width, player.x));
-        player.y = Math.max(0, Math.min(world.height, player.y));
-
-        // カメラ更新（プレイヤーを中央に）
-        camera.x = player.x - canvas.width / 2;
-        camera.y = player.y - canvas.height / 2;
-
-        // UI更新
-        statusEl.innerText = `位置: (${Math.floor(player.x)}, ${Math.floor(player.y)})`;
-        const distToExit = Math.floor(Math.sqrt((player.x - exit.x)**2 + (player.y - exit.y)**2));
-        distanceEl.innerText = `脱出まで: ${distToExit}m`;
-
-        if(distToExit < exit.radius) {
-            alert("脱出成功！タイドプリズンを突破しました。");
-            player.x = 2500; player.y = 2500; // リセット
-        }
-
-        draw();
-        requestAnimationFrame(update);
-    }
-
-    function draw() {
-        ctx.fillStyle = '#111'; // 背景（地面）
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.save();
-        ctx.translate(-camera.x, -camera.y);
-
-        // グリッド描画（広さを実感させるため）
-        ctx.strokeStyle = '#222';
-        for(let x=0; x<world.width; x+=world.gridSize) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, world.height); ctx.stroke();
-        }
-        for(let y=0; y<world.height; y+=world.gridSize) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(world.width, y); ctx.stroke();
-        }
-
-        // 障害物（壁）
-        ctx.fillStyle = '#333';
-        walls.forEach(w => {
-            ctx.fillRect(w.x, w.y, w.w, w.h);
-        });
-
-        // 脱出地点（ヘリポート風）
-        ctx.strokeStyle = '#ff0';
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.arc(exit.x, exit.y, exit.radius, 0, Math.PI*2);
-        ctx.stroke();
-        ctx.fillStyle = '#ff0';
-        ctx.font = "20px Arial";
-        ctx.fillText("EXTRACTION", exit.x - 60, exit.y - 60);
-
-        // プレイヤー
-        ctx.fillStyle = player.color;
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = player.color;
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        ctx.restore();
-    }
+    let scene, camera, renderer;
+    let moveData = { x: 0, y: 0 }, lookData = { x: 0, y: 0 };
+    let playerY = 0, lon = 0, lat = 0;
+    const worldSize = 4000;
 
     init();
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x020202);
+        scene.fog = new THREE.FogExp2(0x020202, 0.0015);
+
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+        camera.position.set(0, 1.7, 0); // 人間の目線高さ
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // ライト
+        const ambient = new THREE.AmbientLight(0x404040, 0.5);
+        scene.add(ambient);
+
+        // 地面
+        const floorGeo = new THREE.PlaneGeometry(worldSize, worldSize);
+        const floorMat = new THREE.MeshPhongMaterial({ color: 0x111111, specular: 0x050505 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
+
+        // 監獄の壁と構造物の生成（プロシージャル再現）
+        const wallGeo = new THREE.BoxGeometry(10, 20, 10);
+        const wallMat = new THREE.MeshPhongMaterial({ color: 0x222222 });
+        
+        for (let i = 0; i < 500; i++) {
+            const wall = new THREE.Mesh(wallGeo, wallMat);
+            wall.position.x = Math.random() * worldSize - worldSize/2;
+            wall.position.z = Math.random() * worldSize - worldSize/2;
+            wall.scale.set(Math.random() * 5 + 1, Math.random() * 2 + 1, Math.random() * 5 + 1);
+            scene.add(wall);
+
+            // 警報灯
+            if (Math.random() > 0.8) {
+                const light = new THREE.PointLight(0xff0000, 50, 50);
+                light.position.set(wall.position.x, 15, wall.position.z);
+                scene.add(light);
+            }
+        }
+
+        // 脱出口（巨大な青い光柱）
+        const exitGeo = new THREE.CylinderGeometry(20, 20, 1000, 32);
+        const exitMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 });
+        const exit = new THREE.Mesh(exitGeo, exitMat);
+        exit.position.set(1500, 500, 1500);
+        scene.add(exit);
+
+        setupJoysticks();
+        animate();
+    }
+
+    function setupJoysticks() {
+        const setup = (id, knobId, data) => {
+            const container = document.getElementById(id);
+            const knob = document.getElementById(knobId);
+            const move = (e) => {
+                const touch = e.touches[0];
+                const rect = container.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                let dx = touch.clientX - centerX;
+                let dy = touch.clientY - centerY;
+                const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 50);
+                const angle = Math.atan2(dy, dx);
+                
+                data.x = Math.cos(angle) * (dist / 50);
+                data.y = Math.sin(angle) * (dist / 50);
+                knob.style.transform = `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px)`;
+            };
+            container.addEventListener('touchstart', move);
+            container.addEventListener('touchmove', (e) => { e.preventDefault(); move(e); });
+            container.addEventListener('touchend', () => {
+                data.x = 0; data.y = 0;
+                knob.style.transform = 'translate(0,0)';
+            });
+        };
+        setup('move-joy', 'move-knob', moveData);
+        setup('look-joy', 'look-knob', lookData);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // 視点移動
+        lon += lookData.x * 2.5;
+        lat = Math.max(-85, Math.min(85, lat - lookData.y * 2));
+        
+        const phi = THREE.MathUtils.degToRad(90 - lat);
+        const theta = THREE.MathUtils.degToRad(lon);
+        
+        const target = new THREE.Vector3();
+        target.setFromSphericalCoords(1, phi, theta).add(camera.position);
+        camera.lookAt(target);
+
+        // 移動
+        if (moveData.x !== 0 || moveData.y !== 0) {
+            const forward = new THREE.Vector3().setFromSphericalCoords(1, Math.PI/2, theta);
+            const right = new THREE.Vector3().setFromSphericalCoords(1, Math.PI/2, theta - Math.PI/2);
+            
+            camera.position.addScaledVector(forward, -moveData.y * 0.8);
+            camera.position.addScaledVector(right, moveData.x * 0.8);
+        }
+
+        // UI更新
+        document.getElementById('pos').innerText = `POS: ${Math.round(camera.position.x)}, ${Math.round(camera.position.z)}`;
+        
+        renderer.render(scene, camera);
+    }
+
+    window.onresize = () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    };
 </script>
 </body>
 </html>
