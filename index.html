@@ -3,98 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>STELLARIS-MOBILE: ESCAPE</title>
+    <title>STELLARIS-MOBILE: V1.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         :root { --neon: #00f2ff; --alert: #ff0055; }
-        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; touch-action: none; }
         
-        /* UIレイヤー */
+        /* ダブルタップ拡大防止と基本設定 */
+        * { touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+        
+        body { margin: 0; overflow: hidden; background: #050510; font-family: 'Segoe UI', sans-serif; }
+        
         #ui-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         
-        /* 左半分：ジョイスティックエリア */
-        #joystick-zone { position: absolute; bottom: 20px; left: 20px; width: 150px; height: 150px; 
-                         background: rgba(255,255,255,0.1); border-radius: 50%; pointer-events: auto; }
-        #joystick-stick { position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; 
+        /* 操作系 */
+        #joystick-zone { position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px; 
+                         background: rgba(255,255,255,0.05); border: 2px solid rgba(0,242,255,0.2); 
+                         border-radius: 50%; pointer-events: auto; }
+        #joystick-stick { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; 
                           background: var(--neon); border-radius: 50%; transform: translate(-50%, -50%); 
-                          box-shadow: 0 0 20px var(--neon); }
-
-        /* 右半分：視点操作エリア表示（実際は全画面で判定） */
-        #touch-hint { position: absolute; right: 20px; bottom: 20px; color: var(--neon); font-size: 12px; opacity: 0.5; }
+                          box-shadow: 0 0 20px var(--neon); opacity: 0.8; }
 
         /* HUD */
-        #hud { position: absolute; top: 20px; left: 20px; color: var(--neon); }
-        .mission-text { font-size: 14px; border-left: 3px solid var(--neon); padding-left: 10px; }
+        #hud { position: absolute; top: env(safe-area-inset-top, 20px); left: 20px; color: var(--neon); pointer-events: none; }
+        .mission-text { font-size: 14px; background: rgba(0,0,0,0.4); padding: 5px 10px; border-left: 3px solid var(--neon); margin-top: 5px; }
         
-        /* インタラクトボタン */
-        #action-btn { position: absolute; bottom: 40px; right: 40px; width: 80px; height: 80px; 
-                      border: 2px solid var(--neon); border-radius: 50%; color: var(--neon); 
-                      display: flex; align-items: center; justify-content: center; font-weight: bold;
-                      pointer-events: auto; background: rgba(0,0,0,0.5); visibility: hidden; }
+        #action-btn { position: absolute; bottom: 50px; right: 40px; width: 90px; height: 90px; 
+                      background: rgba(0,242,255,0.1); border: 3px solid var(--neon); border-radius: 50%; 
+                      color: var(--neon); display: flex; align-items: center; justify-content: center; 
+                      font-weight: bold; pointer-events: auto; visibility: hidden; 
+                      box-shadow: 0 0 15px var(--neon); }
 
-        /* メッセージ */
-        #msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-               color: white; text-align: center; width: 80%; pointer-events: none; text-shadow: 0 0 10px #000; }
+        #msg { position: absolute; bottom: 20%; left: 50%; transform: translateX(-50%); 
+               color: white; text-align: center; width: 80%; pointer-events: none; 
+               background: rgba(0,0,0,0.6); padding: 10px; border-radius: 5px; opacity: 0; transition: 0.3s; }
     </style>
 </head>
 <body>
 
 <div id="ui-layer">
     <div id="hud">
-        <div style="font-size: 20px; font-weight: bold;">STATION: STELLARIS-9</div>
-        <div class="mission-text" id="mission">任務: 電力を復旧させ、ロケット格納庫へ向かえ</div>
+        <div style="font-size: 18px; font-weight: bold; text-shadow: 0 0 10px var(--neon);">STELLARIS-9 : DECK A</div>
+        <div class="mission-text" id="mission">任務: 通路の先のリアクターを起動せよ</div>
     </div>
 
     <div id="joystick-zone"><div id="joystick-stick"></div></div>
-    <div id="touch-hint">SWIPE TO LOOK</div>
     <div id="action-btn">INTERACT</div>
-    <div id="msg"></div>
+    <div id="msg">メッセージを表示します</div>
 </div>
 
 <script>
-/**
- * 3Dエンジンの基本設定
- */
 let scene, camera, renderer, player;
 let moveForward = 0, moveSide = 0;
 let lookYaw = 0, lookPitch = 0;
 
 function init() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x000510, 0.05);
+    // 背景を少し明るい宇宙色に変更
+    scene.background = new THREE.Color(0x0a0a1a);
+    scene.fog = new THREE.FogExp2(0x0a0a1a, 0.1);
 
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     player = new THREE.Group();
     player.add(camera);
     scene.add(player);
-    player.position.set(0, 1.6, 5);
+    player.position.set(0, 1.6, 10);
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.body.appendChild(renderer.domElement);
 
-    // ライティング
-    const light = new THREE.PointLight(0x00f2ff, 1, 50);
-    player.add(light);
-    scene.add(new THREE.AmbientLight(0x111122));
+    // ライティングを強化
+    const ambient = new THREE.AmbientLight(0x4040ff, 0.5); // 全体を少し青白く
+    scene.add(ambient);
+    const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    sunLight.position.set(5, 10, 7.5);
+    scene.add(sunLight);
 
-    // 仮の宇宙基地：床
-    const floorGeo = new THREE.PlaneGeometry(100, 100);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.5 });
+    // 床：グリッドを追加して移動を分かりやすく
+    const floorGeo = new THREE.PlaneGeometry(200, 200);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x151525 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    // 障害物・オブジェクト（ここにパズル要素を追加していく）
-    createObject(0, 1, -5, 0xff0055, "REACT_CORE"); // リアクター
-    createObject(5, 1, -10, 0x00ff00, "ESCAPE_SHIP"); // ロケット
+    const grid = new THREE.GridHelper(200, 50, 0x00f2ff, 0x222244);
+    grid.position.y = 0.05;
+    scene.add(grid);
 
+    // 目標物（リアクター）
+    createTarget(0, 1, -10, 0xff0055, "REACTOR");
+    
+    // 周囲の壁（基地感）
+    for(let i=0; i<10; i++) {
+        createWall(Math.random()*40-20, 2, Math.random()*40-20);
+    }
+
+    window.addEventListener('resize', onWindowResize, false);
+    setupControls();
     animate();
 }
 
-function createObject(x, y, z, color, name) {
-    const geo = new THREE.BoxGeometry(2, 2, 2);
+function createTarget(x, y, z, color, name) {
+    const geo = new THREE.IcosahedronGeometry(1.5, 0);
     const mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.5 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y, z);
@@ -102,96 +113,123 @@ function createObject(x, y, z, color, name) {
     scene.add(mesh);
 }
 
-/**
- * モバイル操作：ジョイスティックと視点
- */
-const joystick = document.getElementById('joystick-zone');
-const stick = document.getElementById('joystick-stick');
-let joyTouchId = null;
+function createWall(x, y, z) {
+    const geo = new THREE.BoxGeometry(4, 8, 0.5);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x222233 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, 4, z);
+    scene.add(mesh);
+}
 
-// 視点操作用
-let lastTouchX, lastTouchY;
-
-window.addEventListener('touchstart', (e) => {
-    for (let t of e.changedTouches) {
-        if (t.clientX < window.innerWidth / 2) {
-            joyTouchId = t.identifier;
-        } else {
-            lastTouchX = t.clientX;
-            lastTouchY = t.clientY;
-        }
-    }
-}, {passive: false});
-
-window.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    for (let t of e.changedTouches) {
-        if (t.identifier === joyTouchId) {
-            // ジョイスティック計算
-            const rect = joystick.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-            const dx = t.clientX - centerX;
-            const dy = t.clientY - centerY;
-            const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 50);
-            const angle = Math.atan2(dy, dx);
-
-            stick.style.left = (50 + Math.cos(angle) * dist) + '%';
-            stick.style.top = (50 + Math.sin(angle) * dist) + '%';
-
-            moveSide = (Math.cos(angle) * dist) / 50;
-            moveForward = -(Math.sin(angle) * dist) / 50;
-        } else {
-            // 視点操作
-            const dx = t.clientX - lastTouchX;
-            const dy = t.clientY - lastTouchY;
-            lookYaw -= dx * 0.005;
-            lookPitch -= dy * 0.005;
-            lookPitch = Math.max(-Math.PI/3, Math.min(Math.PI/3, lookPitch));
-            lastTouchX = t.clientX;
-            lastTouchY = t.clientY;
-        }
-    }
-}, {passive: false});
-
-window.addEventListener('touchend', (e) => {
-    for (let t of e.changedTouches) {
-        if (t.identifier === joyTouchId) {
-            joyTouchId = null;
-            moveForward = 0; moveSide = 0;
-            stick.style.left = '50%'; stick.style.top = '50%';
-        }
-    }
-});
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
 
 /**
- * 更新ループ
+ * 操作改善：ジョイスティックとスムーズな視点操作
  */
+function setupControls() {
+    const joystick = document.getElementById('joystick-zone');
+    const stick = document.getElementById('joystick-stick');
+    let joyTouchId = null;
+    let lastTouchX, lastTouchY;
+
+    window.addEventListener('touchstart', (e) => {
+        for (let t of e.changedTouches) {
+            if (t.clientX < window.innerWidth / 2) {
+                joyTouchId = t.identifier;
+            } else {
+                lastTouchX = t.clientX;
+                lastTouchY = t.clientY;
+            }
+        }
+    }, {passive: false});
+
+    window.addEventListener('touchmove', (e) => {
+        e.preventDefault(); // ズームやスクロールを完全に阻止
+        for (let t of e.changedTouches) {
+            if (t.identifier === joyTouchId) {
+                const rect = joystick.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const dx = t.clientX - centerX;
+                const dy = t.clientY - centerY;
+                const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 50);
+                const angle = Math.atan2(dy, dx);
+
+                stick.style.left = (50 + Math.cos(angle) * (dist/60 * 50)) + '%';
+                stick.style.top = (50 + Math.sin(angle) * (dist/60 * 50)) + '%';
+
+                // 前後移動の向きを修正：dyがマイナス（上）のとき前進（-Z方向）
+                moveSide = (dx / 50);
+                moveForward = (dy / 50); 
+            } else {
+                const dx = t.clientX - lastTouchX;
+                const dy = t.clientY - lastTouchY;
+                lookYaw -= dx * 0.006;
+                lookPitch -= dy * 0.006;
+                lookPitch = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, lookPitch));
+                lastTouchX = t.clientX;
+                lastTouchY = t.clientY;
+            }
+        }
+    }, {passive: false});
+
+    window.addEventListener('touchend', (e) => {
+        for (let t of e.changedTouches) {
+            if (t.identifier === joyTouchId) {
+                joyTouchId = null;
+                moveForward = 0; moveSide = 0;
+                stick.style.left = '50%'; stick.style.top = '50%';
+            }
+        }
+    });
+}
+
 function animate() {
     requestAnimationFrame(animate);
 
-    // プレイヤーの向きに合わせて移動
-    const dir = new THREE.Vector3(moveSide, 0, moveForward);
-    dir.applyQuaternion(player.quaternion);
-    player.position.add(dir.multiplyScalar(0.1));
+    // 移動ロジック
+    // moveForwardがプラス（下方向に入力）なら+Z、マイナス（上方向に入力）なら-Zへ移動
+    const moveVector = new THREE.Vector3(moveSide * 0.15, 0, moveForward * 0.15);
+    moveVector.applyQuaternion(player.quaternion);
+    player.position.add(moveVector);
 
-    // カメラ回転の適用
     player.rotation.y = lookYaw;
     camera.rotation.x = lookPitch;
 
+    // インタラクション判定
     checkInteractions();
+
     renderer.render(scene, camera);
 }
 
 function checkInteractions() {
     const btn = document.getElementById('action-btn');
-    // プレイヤーとオブジェクトの距離判定（簡易版）
-    // 実際にはRaycasterを使うとより正確です
-    if (player.position.distanceTo(new THREE.Vector3(0, 1, -5)) < 3) {
+    const msg = document.getElementById('msg');
+    
+    // リアクターとの距離
+    const dist = player.position.distanceTo(new THREE.Vector3(0, 1, -10));
+    
+    if (dist < 4) {
         btn.style.visibility = 'visible';
+        if(btn.style.opacity == 0) {
+            showMsg("リアクターに接近。INTERACTを押して起動。");
+            btn.style.opacity = 1;
+        }
     } else {
         btn.style.visibility = 'hidden';
+        btn.style.opacity = 0;
     }
+}
+
+function showMsg(text) {
+    const msg = document.getElementById('msg');
+    msg.textContent = text;
+    msg.style.opacity = 1;
+    setTimeout(() => { msg.style.opacity = 0; }, 3000);
 }
 
 init();
