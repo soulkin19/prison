@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Tactical PvE - Grenade & Balance Update</title>
+    <title>3D Tactical PvE - iPad Hybrid Support</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; touch-action: none; background: #000; }
         #ui { position: absolute; top: 15px; left: 15px; color: #111; pointer-events: none; background: rgba(255,255,255,0.8); padding: 12px; border-radius: 8px; font-weight: bold; border: 2px solid #444; z-index: 5; }
@@ -26,7 +26,7 @@
     </style>
 </head>
 <body>
-    <div id="click-to-start">CLICK TO DEPLOY<br><span style="font-size:14px;">[WASD]: Move | [Space]: Fire | [G]: Grenade | [1-4]: Weapon Switch</span></div>
+    <div id="click-to-start">TAP or CLICK TO DEPLOY<br><span style="font-size:14px;">[WASD]: Move | [Space/Tap]: Fire | [G]: Grenade | [Enter]: ADS</span></div>
     <div id="scope-overlay"></div>
     <div id="ui">SCORE: <span id="score">0</span> | WAVE: <span id="wave">1</span> | HP: <span id="health">100</span></div>
     <div id="reload-msg">RELOADING...</div>
@@ -44,7 +44,7 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- バランス調整された設定 ---
+        // --- 設定 ---
         const STAGE_SIZE = 100;
         const WEAPONS = {
             S12K: { name: 'S12K', maxAmmo: 6, rpm: 180, reloadTime: 2000, recoil: 0.16, damage: 45, spread: 0.15, pellets: 12, color: 0x1a1a1a, adsFov: 55 },
@@ -94,14 +94,6 @@
         scene.add(towerGroup);
         obstacles.push(platform);
 
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
-        const createWall = (w, h, d, x, z) => {
-            const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
-            wall.position.set(x, h/2, z); scene.add(wall); obstacles.push(wall);
-        };
-        createWall(STAGE_SIZE, 8, 2, 0, STAGE_SIZE/2); createWall(STAGE_SIZE, 8, 2, 0, -STAGE_SIZE/2);
-        createWall(2, 8, STAGE_SIZE, STAGE_SIZE/2, 0); createWall(2, 8, STAGE_SIZE, -STAGE_SIZE/2, 0);
-
         const weaponGroup = new THREE.Group();
         const weaponPivot = new THREE.Group();
         const gunContainer = new THREE.Group();
@@ -111,89 +103,64 @@
         gunContainer.add(muzzleFlash, flashMesh);
 
         function buildGunModel(config) {
-            gunContainer.clear();
-            gunContainer.add(muzzleFlash, flashMesh);
+            gunContainer.clear(); gunContainer.add(muzzleFlash, flashMesh);
             const mat = new THREE.MeshStandardMaterial({ color: config.color, metalness: 0.6, roughness: 0.4 });
             let bL = config.name === 'UZI' ? 0.35 : 0.6;
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, bL), mat);
-            gunContainer.add(body);
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, bL), mat); gunContainer.add(body);
             const barrelLen = config.name === 'AWM' ? 0.8 : (config.name === 'UZI' ? 0.15 : 0.4);
             const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, barrelLen), mat);
-            barrel.rotation.x = Math.PI / 2; barrel.position.z = - (bL/2 + barrelLen/2);
-            gunContainer.add(barrel);
-            flashMesh.position.z = barrel.position.z - barrelLen/2;
-            muzzleFlash.position.copy(flashMesh.position);
+            barrel.rotation.x = Math.PI / 2; barrel.position.z = - (bL/2 + barrelLen/2); gunContainer.add(barrel);
+            flashMesh.position.z = barrel.position.z - barrelLen/2; muzzleFlash.position.copy(flashMesh.position);
             if (config.name === 'AWM') {
                 const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3), mat);
                 scope.rotation.x = Math.PI / 2; scope.position.y = 0.12; gunContainer.add(scope);
             }
-            gunContainer.position.set(0.3, -0.25, -0.6);
-            return gunContainer;
+            gunContainer.position.set(0.3, -0.25, -0.6); return gunContainer;
         }
 
         weaponPivot.add(buildGunModel(currentWeapon));
-        weaponGroup.add(weaponPivot);
-        scene.add(weaponGroup);
+        weaponGroup.add(weaponPivot); scene.add(weaponGroup);
 
         const grenades = [], blasts = [], enemies = [];
         function throwGrenade() {
             const g = new THREE.Mesh(new THREE.SphereGeometry(0.15), new THREE.MeshStandardMaterial({color: 0x224422}));
             g.position.copy(camera.position);
             const dir = camera.getWorldDirection(new THREE.Vector3());
-            // 少し上に放り投げるベクトル
             g.userData = { velocity: dir.multiplyScalar(0.55).add(new THREE.Vector3(0, 0.15, 0)), life: 120 };
             scene.add(g); grenades.push(g);
         }
 
         function createExplosion(pos) {
             const exp = new THREE.Mesh(new THREE.SphereGeometry(1), new THREE.MeshBasicMaterial({color: 0xffaa00, transparent: true, opacity: 0.8}));
-            exp.position.copy(pos);
-            scene.add(exp);
+            exp.position.copy(pos); scene.add(exp);
             blasts.push({ mesh: exp, scale: 1, alpha: 0.8 });
-
-            const blastLight = new THREE.PointLight(0xff5500, 15, 12);
-            blastLight.position.copy(pos);
-            scene.add(blastLight);
-            setTimeout(() => scene.remove(blastLight), 150);
-
-            // 敵への確実なダメージ処理
+            const blastLight = new THREE.PointLight(0xff5500, 15, 12); blastLight.position.copy(pos);
+            scene.add(blastLight); setTimeout(() => scene.remove(blastLight), 150);
             enemies.forEach(e => {
                 const dist = e.position.distanceTo(pos);
                 if(dist < 7.5) {
-                    const dmg = dist < 3 ? 500 : 200; // 中心に近いほど高威力
-                    e.userData.hp -= dmg;
-                    if(e.userData.hp <= 0) {
-                        scene.remove(e);
-                        enemies.splice(enemies.indexOf(e), 1);
-                        score += 150;
-                    }
+                    e.userData.hp -= (dist < 3 ? 500 : 200);
+                    if(e.userData.hp <= 0) { scene.remove(e); enemies.splice(enemies.indexOf(e), 1); score += 150; }
                 }
             });
         }
 
         function spawnEnemy() {
             const e = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1, 4, 8), new THREE.MeshStandardMaterial({ color: 0xcc3333 }));
-            let ex = (Math.random() - 0.5) * (STAGE_SIZE - 20);
-            let ez = (Math.random() - 0.5) * (STAGE_SIZE - 20);
-            e.position.set(ex, 1, ez);
+            e.position.set((Math.random()-0.5)*80, 1, (Math.random()-0.5)*80);
             e.userData = { hp: 100, lastAtk: 0, steerAngle: 0 };
             scene.add(e); enemies.push(e);
-        }
-
-        function showFlash() {
-            flashMesh.visible = true; muzzleFlash.intensity = 15;
-            setTimeout(() => { flashMesh.visible = false; muzzleFlash.intensity = 0; }, 35);
         }
 
         function fire() {
             if (isReloading || ammo <= 0 || playerHealth <= 0) return;
             const now = Date.now();
             if (now - lastFireTime < (60000 / currentWeapon.rpm)) return;
-            ammo--; lastFireTime = now; updateUI(); showFlash();
-            targetRecoilX += currentWeapon.recoil;
-            weaponPivot.position.z += 0.12;
-            const ray = new THREE.Raycaster();
-            ray.setFromCamera(new THREE.Vector2(0,0), camera);
+            ammo--; lastFireTime = now; updateUI(); 
+            flashMesh.visible = true; muzzleFlash.intensity = 15;
+            setTimeout(() => { flashMesh.visible = false; muzzleFlash.intensity = 0; }, 35);
+            targetRecoilX += currentWeapon.recoil; weaponPivot.position.z += 0.12;
+            const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(0,0), camera);
             const hits = ray.intersectObjects(enemies);
             if(hits.length > 0) {
                 const e = hits[0].object; e.userData.hp -= currentWeapon.damage;
@@ -221,14 +188,14 @@
         }
 
         function updateUI() {
-            document.getElementById('current-ammo').innerText = ammo;
-            document.getElementById('weapon-name').innerText = currentWeapon.name;
-            document.getElementById('score').innerText = score;
-            document.getElementById('wave').innerText = wave;
-            document.getElementById('health').innerText = playerHealth;
+            document.getElementById('current-ammo').innerText = ammo; document.getElementById('weapon-name').innerText = currentWeapon.name;
+            document.getElementById('score').innerText = score; document.getElementById('wave').innerText = wave; document.getElementById('health').innerText = playerHealth;
         }
 
+        // --- 入力制御 (Hybrid) ---
         const keys = {};
+        let lastTouchX = 0, lastTouchY = 0;
+
         window.addEventListener('keydown', (e) => {
             keys[e.code] = true;
             if(e.code === 'Space') fire();
@@ -239,6 +206,7 @@
         });
         window.addEventListener('keyup', (e) => keys[e.code] = false);
 
+        // マウス視点移動
         window.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement) {
                 const s = isAds ? (currentWeapon.adsFov / 75) * 0.002 : 0.0022;
@@ -247,7 +215,26 @@
             }
         });
 
-        document.getElementById('click-to-start').addEventListener('click', function() { this.style.display = 'none'; document.body.requestPointerLock(); });
+        // タッチ視点移動
+        window.addEventListener('touchstart', (e) => {
+            lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
+            if(!document.pointerLockElement) fire(); // タップで射撃
+        }, {passive: false});
+
+        window.addEventListener('touchmove', (e) => {
+            const t = e.touches[0];
+            const dx = t.clientX - lastTouchX, dy = t.clientY - lastTouchY;
+            const s = isAds ? 0.003 : 0.005;
+            camera.rotation.y -= dx * s; camera.rotation.x -= dy * s;
+            camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x));
+            lastTouchX = t.clientX; lastTouchY = t.clientY;
+            e.preventDefault();
+        }, {passive: false});
+
+        document.getElementById('click-to-start').addEventListener('click', function() { 
+            this.style.display = 'none'; 
+            document.body.requestPointerLock(); 
+        });
 
         function animate() {
             requestAnimationFrame(animate);
@@ -256,63 +243,40 @@
             weaponPivot.position.lerp(new THREE.Vector3(0,0,0), 0.2);
             weaponGroup.position.copy(camera.position); weaponGroup.quaternion.copy(camera.quaternion);
 
-            // グレネード物理
             for(let i=grenades.length-1; i>=0; i--) {
-                const g = grenades[i]; 
-                g.position.add(g.userData.velocity); 
-                g.userData.velocity.y -= 0.015; // 重力
+                const g = grenades[i]; g.position.add(g.userData.velocity); g.userData.velocity.y -= 0.015;
                 if(g.position.y < 0.15) { g.position.y = 0.15; g.userData.velocity.multiplyScalar(0.5); }
-                g.userData.life--;
-                if(g.userData.life <= 0) {
-                    createExplosion(g.position);
-                    scene.remove(g); grenades.splice(i, 1);
-                }
+                if(--g.userData.life <= 0) { createExplosion(g.position); scene.remove(g); grenades.splice(i, 1); }
             }
 
-            // 爆破演出（膨らんで消える）
             for(let i=blasts.length-1; i>=0; i--) {
-                const b = blasts[i];
-                b.scale += 0.4; b.alpha -= 0.05;
-                b.mesh.scale.set(b.scale, b.scale, b.scale);
-                b.mesh.material.opacity = b.alpha;
+                const b = blasts[i]; b.scale += 0.4; b.alpha -= 0.05;
+                b.mesh.scale.set(b.scale, b.scale, b.scale); b.mesh.material.opacity = b.alpha;
                 if(b.alpha <= 0) { scene.remove(b.mesh); blasts.splice(i, 1); }
             }
 
-            // プレイヤー移動
-            const s = 0.15;
             const move = new THREE.Vector3();
             if(keys['KeyW']) move.z -= 1; if(keys['KeyS']) move.z += 1;
             if(keys['KeyA']) move.x -= 1; if(keys['KeyD']) move.x += 1;
             move.applyQuaternion(camera.quaternion); move.y = 0;
-            const nextPos = camera.position.clone().add(move.normalize().multiplyScalar(s));
-            
+            const nextPos = camera.position.clone().add(move.normalize().multiplyScalar(0.15));
             let canMove = true;
-            obstacles.forEach(ob => {
-                const box = new THREE.Box3().setFromObject(ob);
-                if(box.containsPoint(nextPos)) canMove = false;
-            });
+            obstacles.forEach(ob => { if(new THREE.Box3().setFromObject(ob).containsPoint(nextPos)) canMove = false; });
             if(canMove) { camera.position.x = nextPos.x; camera.position.z = nextPos.z; }
 
             const rayDown = new THREE.Raycaster(new THREE.Vector3(camera.position.x, 10, camera.position.z), new THREE.Vector3(0, -1, 0));
             const groundHits = rayDown.intersectObjects([floor, platform]);
-            if (groundHits.length > 0) {
-                const targetY = groundHits[0].point.y + 1.6;
-                camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, 0.2);
-            }
+            if (groundHits.length > 0) camera.position.y = THREE.MathUtils.lerp(camera.position.y, groundHits[0].point.y + 1.6, 0.2);
 
-            // 敵AI
             enemies.forEach(e => {
-                const toPlayer = new THREE.Vector3().subVectors(camera.position, e.position);
-                toPlayer.y = 0;
-                const dist = toPlayer.length(), dir = toPlayer.normalize();
-                const ray = new THREE.Raycaster(e.position, dir, 0, 3);
-                const hits = ray.intersectObjects(obstacles);
-                if(hits.length > 0) e.userData.steerAngle += 0.15; else e.userData.steerAngle *= 0.9;
-                const finalDir = dir.applyAxisAngle(new THREE.Vector3(0,1,0), e.userData.steerAngle);
-                if(dist > 1.8) e.position.add(finalDir.multiplyScalar(0.05 + wave*0.003));
+                const toP = new THREE.Vector3().subVectors(camera.position, e.position); toP.y = 0;
+                const dist = toP.length(), dir = toP.normalize();
+                if(new THREE.Raycaster(e.position, dir, 0, 3).intersectObjects(obstacles).length > 0) e.userData.steerAngle += 0.15; else e.userData.steerAngle *= 0.9;
+                const fDir = dir.applyAxisAngle(new THREE.Vector3(0,1,0), e.userData.steerAngle);
+                if(dist > 1.8) e.position.add(fDir.multiplyScalar(0.05 + wave*0.003));
                 else if(playerHealth > 0 && now - e.userData.lastAtk > 1000) {
                     playerHealth -= 10; e.userData.lastAtk = now; updateUI();
-                    if(playerHealth <= 0) { alert("MISSION FAILED. SCORE: " + score); location.reload(); }
+                    if(playerHealth <= 0) { alert("FAILED. SCORE: " + score); location.reload(); }
                 }
                 e.lookAt(camera.position.x, 1, camera.position.z);
             });
@@ -320,7 +284,6 @@
             if(enemies.length === 0) { wave++; for(let i=0; i<2+wave; i++) spawnEnemy(); }
             renderer.render(scene, camera);
         }
-
         spawnEnemy(); updateUI(); animate();
     </script>
 </body>
