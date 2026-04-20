@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Tactical PvE - Tactical Update</title>
+    <title>3D Tactical PvE - Tactical Update Fix</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; touch-action: none; background: #000; }
         #ui { position: absolute; top: 15px; left: 15px; color: #111; pointer-events: none; background: rgba(255,255,255,0.8); padding: 12px; border-radius: 8px; font-weight: bold; border: 2px solid #444; z-index: 5; }
@@ -63,6 +63,9 @@
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 1000);
         camera.rotation.order = 'YXZ';
+        // 初期位置を安全な場所に設定
+        camera.position.set(0, 1.6, 20);
+
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
@@ -73,12 +76,11 @@
         sun.position.set(30, 60, 30);
         scene.add(sun);
 
-        // 地面
         const floor = new THREE.Mesh(new THREE.PlaneGeometry(STAGE_SIZE, STAGE_SIZE), new THREE.MeshStandardMaterial({ color: 0x6a8a6a }));
         floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
 
-        // --- 障害物と見張り台の設置 ---
+        // --- 障害物と見張り台 ---
         const obstacles = [];
         const boxMat = new THREE.MeshStandardMaterial({ color: 0x554433, roughness: 0.8 });
         
@@ -89,13 +91,11 @@
             obstacles.push(box);
         }
 
-        // 障害物配置
         addBox(4, 3, 4, 10, 10); addBox(6, 2, 3, -15, 20); addBox(3, 4, 3, 20, -15); addBox(5, 2, 5, -5, -10);
 
-        // 見張り台
         const towerGroup = new THREE.Group();
         const tPostMat = new THREE.MeshStandardMaterial({ color: 0x332211 });
-        for(let i=0; i<4; i++) { // 4本の柱
+        for(let i=0; i<4; i++) {
             const p = new THREE.Mesh(new THREE.BoxGeometry(0.5, 6, 0.5), tPostMat);
             p.position.set(i<2 ? 2.5 : -2.5, 3, i%2==0 ? 2.5 : -2.5);
             towerGroup.add(p);
@@ -105,9 +105,8 @@
         towerGroup.add(platform);
         towerGroup.position.set(-40, 0, -40);
         scene.add(towerGroup);
-        obstacles.push(platform); // プレイヤーが登れるように（簡易判定用）
+        obstacles.push(platform);
 
-        // 外壁
         const wallMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
         const createWall = (w, h, d, x, z) => {
             const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
@@ -136,10 +135,8 @@
             const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, barrelLen), mat);
             barrel.rotation.x = Math.PI / 2; barrel.position.z = - (bL/2 + barrelLen/2);
             gunContainer.add(barrel);
-            
             flashMesh.position.z = barrel.position.z - barrelLen/2;
             muzzleFlash.position.copy(flashMesh.position);
-
             if (config.name === 'AWM') {
                 const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3), mat);
                 scope.rotation.x = Math.PI / 2; scope.position.y = 0.12; gunContainer.add(scope);
@@ -152,19 +149,15 @@
         weaponGroup.add(weaponPivot);
         scene.add(weaponGroup);
 
-        // --- グレネード ---
-        const grenades = [];
+        const grenades = [], tracers = [], enemies = [];
         function throwGrenade() {
             const g = new THREE.Mesh(new THREE.SphereGeometry(0.15), new THREE.MeshStandardMaterial({color: 0x114411}));
             g.position.copy(camera.position);
             const dir = camera.getWorldDirection(new THREE.Vector3());
             g.userData = { velocity: dir.multiplyScalar(0.6), life: 180 };
-            scene.add(g);
-            grenades.push(g);
+            scene.add(g); grenades.push(g);
         }
 
-        // --- 敵・エフェクト ---
-        const tracers = [], enemies = [];
         function spawnEnemy() {
             const e = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1, 4, 8), new THREE.MeshStandardMaterial({ color: 0xcc3333 }));
             let ex = (Math.random() - 0.5) * (STAGE_SIZE - 10);
@@ -265,19 +258,16 @@
             weaponPivot.position.lerp(new THREE.Vector3(0,0,0), 0.2);
             weaponGroup.position.copy(camera.position); weaponGroup.quaternion.copy(camera.quaternion);
 
-            // グレネード処理
+            // グレネード
             for(let i=grenades.length-1; i>=0; i--) {
-                const g = grenades[i];
-                g.position.add(g.userData.velocity);
-                g.userData.velocity.y -= 0.02; // 重力
+                const g = grenades[i]; g.position.add(g.userData.velocity); g.userData.velocity.y -= 0.02;
                 if(g.position.y < 0.15) { g.position.y = 0.15; g.userData.velocity.set(0,0,0); }
                 g.userData.life--;
                 if(g.userData.life === 0) {
                     const blast = new THREE.Mesh(new THREE.SphereGeometry(6), new THREE.MeshBasicMaterial({color: 0xffaa00, transparent: true, opacity: 0.5}));
                     blast.position.copy(g.position); scene.add(blast);
                     enemies.forEach(e => { if(e.position.distanceTo(g.position) < 6) e.userData.hp -= 200; });
-                    setTimeout(() => scene.remove(blast), 200);
-                    scene.remove(g); grenades.splice(i, 1);
+                    setTimeout(() => scene.remove(blast), 200); scene.remove(g); grenades.splice(i, 1);
                 }
             }
 
@@ -289,7 +279,6 @@
             move.applyQuaternion(camera.quaternion); move.y = 0;
             const nextPos = camera.position.clone().add(move.normalize().multiplyScalar(s));
             
-            // 障害物判定（簡易）
             let canMove = true;
             obstacles.forEach(ob => {
                 const box = new THREE.Box3().setFromObject(ob);
@@ -297,19 +286,22 @@
             });
             if(canMove) { camera.position.x = nextPos.x; camera.position.z = nextPos.z; }
 
-            // 敵AI (障害物回避)
+            // 地面/プラットフォーム判定（埋まり防止）
+            const rayDown = new THREE.Raycaster(new THREE.Vector3(camera.position.x, 10, camera.position.z), new THREE.Vector3(0, -1, 0));
+            const groundHits = rayDown.intersectObjects([floor, platform]);
+            if (groundHits.length > 0) {
+                const targetY = groundHits[0].point.y + 1.6;
+                camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, 0.2);
+            }
+
+            // 敵AI
             enemies.forEach(e => {
                 const toPlayer = new THREE.Vector3().subVectors(camera.position, e.position);
                 toPlayer.y = 0;
-                const dist = toPlayer.length();
-                const dir = toPlayer.normalize();
-
-                // 障害物検知用レイキャスト
+                const dist = toPlayer.length(), dir = toPlayer.normalize();
                 const ray = new THREE.Raycaster(e.position, dir, 0, 3);
                 const hits = ray.intersectObjects(obstacles);
-                if(hits.length > 0) e.userData.steerAngle += 0.2; // 壁があれば避ける
-                else e.userData.steerAngle *= 0.9;
-
+                if(hits.length > 0) e.userData.steerAngle += 0.2; else e.userData.steerAngle *= 0.9;
                 const finalDir = dir.applyAxisAngle(new THREE.Vector3(0,1,0), e.userData.steerAngle);
                 if(dist > 1.8) e.position.add(finalDir.multiplyScalar(0.06 + wave*0.005));
                 else if(playerHealth > 0 && now - e.userData.lastAtk > 1000) {
