@@ -3,27 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Tactical PvE - Refined</title>
+    <title>3D Tactical PvE - iPad Pro Edition</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; touch-action: none; background: #87ceeb; }
-        #ui { position: absolute; top: 15px; left: 15px; color: #111; pointer-events: none; background: rgba(255,255,255,0.8); padding: 10px; border-radius: 8px; font-weight: bold; }
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 14px; height: 14px; transform: translate(-50%, -50%); pointer-events: none; }
-        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(255,255,255,0.8); border: 1px solid black; }
-        #crosshair::before { width: 100%; height: 2px; top: 6px; } #crosshair::after { width: 2px; height: 100%; left: 6px; }
-        #ammo-display { position: absolute; bottom: 40px; right: 20px; color: white; text-align: right; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px; }
-        #reload-msg { position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); color: #ffeb3b; font-size: 20px; font-weight: bold; display: none; text-shadow: 2px 2px #000; }
-        #wave-notify { position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%); color: #f44336; font-size: 50px; font-weight: bold; display: none; text-shadow: 0 0 10px #fff; }
+        #ui { position: absolute; top: 15px; left: 15px; color: #111; pointer-events: none; background: rgba(255,255,255,0.8); padding: 12px; border-radius: 8px; font-weight: bold; border: 2px solid #444; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; border: 1px solid #000; }
+        #crosshair::before { width: 100%; height: 2px; top: 7px; } #crosshair::after { width: 2px; height: 100%; left: 7px; }
+        
+        #ammo-display { position: absolute; bottom: 30px; right: 20px; color: white; text-align: right; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px; border: 1px solid #777; }
+        #msg-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
+        #reload-msg { color: #ffeb3b; font-size: 24px; font-weight: bold; display: none; text-shadow: 2px 2px #000; }
+        #click-to-start { position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; cursor: pointer; z-index: 10; }
+
+        /* モバイル操作パネル */
+        .mobile-ui { position: absolute; bottom: 30px; left: 30px; width: 120px; height: 120px; background: rgba(255,255,255,0.2); border-radius: 50%; }
+        #joystick { position: absolute; top: 35px; left: 35px; width: 50px; height: 50px; background: #fff; border-radius: 50%; opacity: 0.6; }
     </style>
 </head>
 <body>
-    <div id="ui">SCORE: <span id="score">0</span> | WAVE: <span id="wave">1</span> | HP: <span id="health">100</span></div>
-    <div id="crosshair"></div>
-    <div id="reload-msg">SWAPPING MAG...</div>
-    <div id="wave-notify">WAVE START</div>
-    <div id="ammo-display">
-        <div id="weapon-name" style="color: #ffeb3b; font-size: 1.2em;">XM7</div>
-        <div style="font-size: 32px;"><span id="current-ammo">45</span> / <span id="max-ammo">45</span></div>
+    <div id="click-to-start">CLICK / TAP TO START</div>
+
+    <div id="ui">
+        SCORE: <span id="score">0</span> | WAVE: <span id="wave">1</span> | HP: <span id="health">100</span>
     </div>
+    
+    <div id="msg-box"><div id="reload-msg">RELOADING...</div></div>
+    
+    <div id="crosshair"></div>
+
+    <div id="ammo-display">
+        <div id="weapon-name" style="color: #ffeb3b; font-size: 1.1em;">XM7</div>
+        <div style="font-size: 36px;"><span id="current-ammo">45</span> / <span id="max-ammo">45</span></div>
+        <div style="font-size: 11px; opacity: 0.7;">[SPACE] FIRE | [ENTER] ADS | [R] RELOAD</div>
+    </div>
+
+    <div class="mobile-ui" id="joy-zone"><div id="joystick"></div></div>
 
     <script type="importmap">
         { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -32,97 +47,90 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 設定 ---
+        // --- 武器データ ---
         const WEAPONS = {
-            S12K: { name: 'S12K', maxAmmo: 4, rpm: 180, reloadTime: 1800, recoil: 0.12, recoveryDelay: 100, damage: 30, spread: 0.12, pellets: 8, color: 0x222222 },
-            XM7: { name: 'XM7', maxAmmo: 45, rpm: 800, reloadTime: 2200, recoil: 0.035, recoveryDelay: 80, damage: 35, spread: 0.02, pellets: 1, color: 0x968169 }
+            S12K: { name: 'S12K', maxAmmo: 4, rpm: 180, reloadTime: 1800, recoil: 0.15, damage: 30, spread: 0.12, pellets: 8, color: 0x2a2a2a },
+            XM7: { name: 'XM7', maxAmmo: 45, rpm: 800, reloadTime: 2200, recoil: 0.04, damage: 35, spread: 0.02, pellets: 1, color: 0x8a7a5f }
         };
 
         let currentWeapon = WEAPONS.XM7;
         let ammo = currentWeapon.maxAmmo;
-        let isReloading = false;
-        let isAds = false;
+        let isReloading = false, isAds = false;
         let score = 0, wave = 1, playerHealth = 100;
-        let lastFireTime = 0;
-        let targetRecoilX = 0; // 反動による目標角度
+        let lastFireTime = 0, targetRecoilX = 0;
 
-        // --- シーン・カメラ ---
+        // --- Three.js セットアップ ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
-        scene.fog = new THREE.Fog(0x87ceeb, 20, 100);
+        scene.fog = new THREE.Fog(0x87ceeb, 20, 120);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.rotation.order = 'YXZ';
+        
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
 
-        // 照明
         scene.add(new THREE.AmbientLight(0xffffff, 0.8));
         const sun = new THREE.DirectionalLight(0xffffff, 1.2);
         sun.position.set(10, 50, 10);
         scene.add(sun);
 
-        // 地面
-        const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshPhongMaterial({ color: 0x77aa77 }));
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshPhongMaterial({ color: 0x77aa77 }));
         floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
-        scene.add(new THREE.GridHelper(200, 40, 0x444444, 0x888888));
+        scene.add(new THREE.GridHelper(300, 60, 0x444444, 0x888888));
 
-        // --- テクスチャ生成関数 ---
-        function createGunTexture(colorHex) {
+        // --- 武器モデルとテクスチャ ---
+        function createTexture(color) {
             const canvas = document.createElement('canvas');
             canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#' + colorHex.toString(16).padStart(6, '0');
-            ctx.fillRect(0, 0, 64, 64);
-            // 汚れ/ディテール追加
-            ctx.fillStyle = 'rgba(0,0,0,0.2)';
-            for(let i=0; i<20; i++) ctx.fillRect(Math.random()*64, Math.random()*64, 10, 2);
+            ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+            ctx.fillRect(0,0,64,64);
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            for(let i=0; i<15; i++) ctx.fillRect(Math.random()*64, Math.random()*64, 8, 4);
             return new THREE.CanvasTexture(canvas);
         }
 
-        // --- 武器モデル ---
         const weaponGroup = new THREE.Group();
-        const weaponPivot = new THREE.Group(); // アニメーション用
+        const weaponPivot = new THREE.Group();
         const gunBody = new THREE.Mesh(
             new THREE.BoxGeometry(0.12, 0.18, 0.7),
-            new THREE.MeshPhongMaterial({ map: createGunTexture(WEAPONS.XM7.color) })
+            new THREE.MeshPhongMaterial({ map: createTexture(WEAPONS.XM7.color) })
         );
         gunBody.position.set(0.3, -0.3, -0.5);
         weaponPivot.add(gunBody);
         weaponGroup.add(weaponPivot);
         scene.add(weaponGroup);
 
-        // --- トレーサー (弾道) システム ---
+        // --- トレーサー ---
         const tracers = [];
-        function spawnTracer(startPos, targetVec) {
-            const geometry = new THREE.BoxGeometry(0.02, 0.02, 1);
-            const material = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8 });
-            const tracer = new THREE.Mesh(geometry, material);
-            
-            tracer.position.copy(startPos);
-            tracer.lookAt(targetVec);
-            scene.add(tracer);
-            tracers.push({ mesh: tracer, speed: 2.5, life: 20 });
+        function spawnTracer(start, target) {
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(0.02, 0.02, 1.5),
+                new THREE.MeshBasicMaterial({ color: 0xffffaa, transparent: true, opacity: 0.9 })
+            );
+            mesh.position.copy(start);
+            mesh.lookAt(target);
+            scene.add(mesh);
+            tracers.push({ mesh, life: 15 });
         }
 
-        // --- 敵管理 ---
+        // --- 敵 ---
         const enemies = [];
         function spawnEnemy() {
-            const enemy = new THREE.Mesh(
-                new THREE.CapsuleGeometry(0.5, 1, 4, 8),
-                new THREE.MeshPhongMaterial({ color: 0xff3333 })
-            );
-            const angle = Math.random() * Math.PI * 2;
-            const dist = 35 + Math.random() * 10;
-            enemy.position.set(Math.cos(angle)*dist, 1, Math.sin(angle)*dist);
-            enemy.userData = { health: 100, lastAttack: 0 };
+            const enemy = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1, 4, 8), new THREE.MeshPhongMaterial({ color: 0xcc3333 }));
+            const a = Math.random() * Math.PI * 2;
+            const d = 30 + Math.random() * 20;
+            enemy.position.set(Math.cos(a)*d, 1, Math.sin(a)*d);
+            enemy.userData = { hp: 100, lastAtk: 0 };
             scene.add(enemy);
             enemies.push(enemy);
         }
 
-        // --- アクション ---
+        // --- システム関数 ---
         function fire() {
             if (isReloading || ammo <= 0 || playerHealth <= 0) return;
             const now = Date.now();
@@ -132,62 +140,62 @@
             lastFireTime = now;
             updateUI();
 
-            // 反動: 跳ね上がり
             targetRecoilX += currentWeapon.recoil;
-            weaponPivot.position.z += 0.15; // 銃本体のキックバック
-            weaponPivot.rotation.x -= 0.1;
+            weaponPivot.position.z += 0.2; // Kickback
+            weaponPivot.rotation.x -= 0.15;
 
-            const raycaster = new THREE.Raycaster();
+            const ray = new THREE.Raycaster();
             for (let i = 0; i < currentWeapon.pellets; i++) {
-                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-                raycaster.ray.direction.x += (Math.random() - 0.5) * currentWeapon.spread;
-                raycaster.ray.direction.y += (Math.random() - 0.5) * currentWeapon.spread;
+                ray.setFromCamera(new THREE.Vector2(0,0), camera);
+                ray.ray.direction.x += (Math.random()-0.5) * currentWeapon.spread;
+                ray.ray.direction.y += (Math.random()-0.5) * currentWeapon.spread;
 
-                // トレーサー生成
-                const muzzlePos = new THREE.Vector3().setFromMatrixPosition(gunBody.matrixWorld);
-                const targetPos = raycaster.ray.origin.clone().add(raycaster.ray.direction.clone().multiplyScalar(50));
-                spawnTracer(muzzlePos, targetPos);
+                const muz = new THREE.Vector3().setFromMatrixPosition(gunBody.matrixWorld);
+                const tar = ray.ray.origin.clone().add(ray.ray.direction.clone().multiplyScalar(50));
+                spawnTracer(muz, tar);
 
-                const hits = raycaster.intersectObjects(enemies);
-                if (hits.length > 0) {
-                    const target = hits[0].object;
-                    target.userData.health -= currentWeapon.damage;
-                    if (target.userData.health <= 0) {
-                        scene.remove(target);
-                        enemies.splice(enemies.indexOf(target), 1);
+                const hits = ray.intersectObjects(enemies);
+                if(hits.length > 0) {
+                    const e = hits[0].object;
+                    e.userData.hp -= currentWeapon.damage;
+                    if(e.userData.hp <= 0) {
+                        scene.remove(e);
+                        enemies.splice(enemies.indexOf(e), 1);
                         score += 100;
                     }
                 }
             }
-            if (ammo === 0) reload();
+            if(ammo === 0) reload();
         }
 
         function reload() {
-            if (isReloading || ammo === currentWeapon.maxAmmo) return;
+            if(isReloading || ammo === currentWeapon.maxAmmo) return;
             isReloading = true;
             document.getElementById('reload-msg').style.display = 'block';
-
-            // リロード演出: 銃を傾けて下げる
-            const tl = { time: 0 };
-            const reloadAnim = setInterval(() => {
-                tl.time += 50;
-                if(tl.time < 500) {
-                    weaponPivot.position.y -= 0.05;
-                    weaponPivot.rotation.z += 0.05;
-                } else if(tl.time > currentWeapon.reloadTime - 500) {
-                    weaponPivot.position.y += 0.05;
-                    weaponPivot.rotation.z -= 0.05;
+            
+            // リロードアニメーション
+            let start = Date.now();
+            const anim = () => {
+                let elapsed = Date.now() - start;
+                let prog = elapsed / currentWeapon.reloadTime;
+                if(prog < 0.5) {
+                    weaponPivot.position.y = -prog * 2;
+                    weaponPivot.rotation.z = prog * 1.5;
+                } else if(prog < 1) {
+                    weaponPivot.position.y = -(1 - prog) * 2;
+                    weaponPivot.rotation.z = (1 - prog) * 1.5;
                 }
-                if(tl.time >= currentWeapon.reloadTime) {
+                if(prog < 1) requestAnimationFrame(anim);
+                else {
                     ammo = currentWeapon.maxAmmo;
                     isReloading = false;
                     document.getElementById('reload-msg').style.display = 'none';
                     weaponPivot.position.set(0,0,0);
                     weaponPivot.rotation.set(0,0,0);
                     updateUI();
-                    clearInterval(reloadAnim);
                 }
-            }, 50);
+            };
+            anim();
         }
 
         function updateUI() {
@@ -197,94 +205,143 @@
             document.getElementById('score').innerText = score;
             document.getElementById('wave').innerText = wave;
             document.getElementById('health').innerText = Math.max(0, playerHealth);
-            gunBody.material.map = createGunTexture(currentWeapon.color);
+            gunBody.material.map = createTexture(currentWeapon.color);
         }
+
+        // --- 操作系 (iPad Hybrid) ---
+        const keys = {};
+        let moveData = { x: 0, y: 0 };
+        let lastTouchX = 0, lastTouchY = 0;
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if(e.code === 'Space') { e.preventDefault(); fire(); }
+            if(e.code === 'Enter') { e.preventDefault(); isAds = !isAds; camera.fov = isAds ? 35 : 75; camera.updateProjectionMatrix(); gunBody.position.x = isAds ? 0 : 0.3; }
+            if(e.code === 'KeyR') reload();
+            if(e.code === 'Digit1') { currentWeapon = WEAPONS.S12K; ammo = currentWeapon.maxAmmo; updateUI(); }
+            if(e.code === 'Digit2') { currentWeapon = WEAPONS.XM7; ammo = currentWeapon.maxAmmo; updateUI(); }
+        });
+        window.addEventListener('keyup', (e) => keys[e.code] = false);
+
+        // マウス視点移動 (iPadトラックパッド対応)
+        window.addEventListener('mousemove', (e) => {
+            if (document.pointerLockElement) {
+                const sens = isAds ? 0.001 : 0.0022;
+                camera.rotation.y -= e.movementX * sens;
+                camera.rotation.x -= e.movementY * sens;
+                camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x));
+            }
+        });
+
+        // タッチ視点移動 (画面右側スライド)
+        window.addEventListener('touchstart', (e) => {
+            const t = e.touches[0];
+            if(t.clientX > window.innerWidth / 2) {
+                lastTouchX = t.clientX;
+                lastTouchY = t.clientY;
+            }
+        }, {passive: false});
+
+        window.addEventListener('touchmove', (e) => {
+            for(let i=0; i<e.touches.length; i++) {
+                const t = e.touches[i];
+                if(t.clientX > window.innerWidth / 2) {
+                    const dx = t.clientX - lastTouchX;
+                    const dy = t.clientY - lastTouchY;
+                    const sens = isAds ? 0.003 : 0.006;
+                    camera.rotation.y -= dx * sens;
+                    camera.rotation.x -= dy * sens;
+                    camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x));
+                    lastTouchX = t.clientX;
+                    lastTouchY = t.clientY;
+                }
+            }
+        }, {passive: false});
+
+        // ジョイスティック
+        const joyZone = document.getElementById('joy-zone');
+        const joyStick = document.getElementById('joystick');
+        joyZone.addEventListener('touchmove', (e) => {
+            const t = e.touches[0];
+            const rect = joyZone.getBoundingClientRect();
+            const dx = t.clientX - (rect.left + rect.width/2);
+            const dy = t.clientY - (rect.top + rect.height/2);
+            const dist = Math.min(Math.sqrt(dx*dx+dy*dy), 50);
+            const ang = Math.atan2(dy, dx);
+            moveData.x = (Math.cos(ang) * dist) / 50;
+            moveData.y = (Math.sin(ang) * dist) / 50;
+            joyStick.style.transform = `translate(${Math.cos(ang)*dist}px, ${Math.sin(ang)*dist}px)`;
+        }, {passive: false});
+        joyZone.addEventListener('touchend', () => { moveData = {x:0, y:0}; joyStick.style.transform = 'translate(0,0)'; });
+
+        // 開始ボタン
+        document.getElementById('click-to-start').addEventListener('click', function() {
+            this.style.display = 'none';
+            if(window.innerWidth > 1024) document.body.requestPointerLock();
+        });
 
         // --- ループ ---
         function animate() {
             requestAnimationFrame(animate);
             const now = Date.now();
 
-            // 反動リカバリー (撃ち終わってから一定時間で戻る)
-            if (now - lastFireTime > currentWeapon.recoveryDelay) {
-                targetRecoilX *= 0.85; // 徐々に0に戻す
+            // 反動リカバリー (0.1秒経過後)
+            if (now - lastFireTime > 100) {
+                targetRecoilX *= 0.82;
             }
-            camera.rotation.x += (targetRecoilX - 0); // 跳ね上がりを適用
-            // マウス操作などでついた角度を少しずつ正規化（微調整）
+            camera.rotation.x += targetRecoilX * 0.1;
             targetRecoilX *= 0.9;
 
-            // 武器の追随とキックバック復帰
+            // 武器の復元
             weaponPivot.position.lerp(new THREE.Vector3(0,0,0), 0.15);
-            weaponPivot.rotation.x *= 0.8;
-            weaponGroup.quaternion.copy(camera.quaternion);
+            weaponPivot.rotation.x *= 0.85;
             weaponGroup.position.copy(camera.position);
+            weaponGroup.quaternion.copy(camera.quaternion);
 
-            // トレーサーの移動
-            for (let i = tracers.length - 1; i >= 0; i--) {
-                const t = tracers[i];
-                t.mesh.translateZ(t.speed);
-                t.life--;
-                if (t.life <= 0) {
-                    scene.remove(t.mesh);
-                    tracers.splice(i, 1);
-                }
+            // トレーサー移動
+            for(let i=tracers.length-1; i>=0; i--) {
+                tracers[i].mesh.translateZ(2.5);
+                tracers[i].life--;
+                if(tracers[i].life <= 0) { scene.remove(tracers[i].mesh); tracers.splice(i,1); }
             }
 
-            // 移動 (WASD)
-            const speed = 0.12;
-            if (keys['KeyW']) camera.translateZ(-speed);
-            if (keys['KeyS']) camera.translateZ(speed);
-            if (keys['KeyA']) camera.translateX(-speed);
-            if (keys['KeyD']) camera.translateX(speed);
+            // 移動 (WASD + ジョイスティック)
+            const s = 0.13;
+            if(keys['KeyW']) camera.translateZ(-s);
+            if(keys['KeyS']) camera.translateZ(s);
+            if(keys['KeyA']) camera.translateX(-s);
+            if(keys['KeyD']) camera.translateX(s);
+            
+            camera.position.x += (Math.cos(camera.rotation.y)*moveData.x - Math.sin(camera.rotation.y)*moveData.y) * s;
+            camera.position.z += (-Math.sin(camera.rotation.y)*moveData.x - Math.cos(camera.rotation.y)*moveData.y) * s;
             camera.position.y = 1.6;
 
             // 敵AI
-            enemies.forEach(enemy => {
-                const vec = new THREE.Vector3().subVectors(camera.position, enemy.position);
-                vec.y = 0;
-                if (vec.length() > 1.8) {
-                    enemy.translateOnAxis(vec.normalize(), 0.06);
-                } else if (playerHealth > 0 && now - enemy.userData.lastAttack > 1000) {
-                    playerHealth -= 10;
-                    enemy.userData.lastAttack = now;
-                    updateUI();
+            enemies.forEach(e => {
+                const v = new THREE.Vector3().subVectors(camera.position, e.position);
+                v.y = 0;
+                if(v.length() > 1.8) e.translateOnAxis(v.normalize(), 0.05 + wave*0.005);
+                else if(playerHealth > 0 && now - e.userData.lastAtk > 1000) {
+                    playerHealth -= 10; e.userData.lastAtk = now; updateUI();
+                    if(playerHealth <= 0) { alert("FAILED. SCORE: " + score); location.reload(); }
                 }
-                enemy.lookAt(camera.position.x, 1, camera.position.z);
+                e.lookAt(camera.position.x, 1, camera.position.z);
             });
 
-            if (enemies.length === 0) {
-                wave++;
-                for(let i=0; i<3+wave; i++) spawnEnemy();
-                document.getElementById('wave-notify').style.display='block';
-                setTimeout(()=>document.getElementById('wave-notify').style.display='none', 1000);
-            }
+            if(enemies.length === 0) { wave++; for(let i=0; i<2+wave; i++) spawnEnemy(); }
 
             renderer.render(scene, camera);
         }
 
-        // 入力
-        const keys = {};
-        window.addEventListener('keydown', (e) => {
-            keys[e.code] = true;
-            if (e.code === 'Space') { e.preventDefault(); fire(); }
-            if (e.code === 'Enter') { e.preventDefault(); isAds = !isAds; camera.fov = isAds ? 35 : 75; camera.updateProjectionMatrix(); gunBody.position.x = isAds ? 0 : 0.3; }
-            if (e.code === 'KeyR') reload();
-            if (e.code === 'Digit1') { currentWeapon = WEAPONS.S12K; ammo = currentWeapon.maxAmmo; updateUI(); }
-            if (e.code === 'Digit2') { currentWeapon = WEAPONS.XM7; ammo = currentWeapon.maxAmmo; updateUI(); }
-        });
-        window.addEventListener('keyup', (e) => keys[e.code] = false);
-        window.addEventListener('mousemove', (e) => {
-            if (document.pointerLockElement) {
-                camera.rotation.y -= e.movementX * 0.002;
-                camera.rotation.x -= e.movementY * 0.002;
-                camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x));
-            }
-        });
-        window.addEventListener('mousedown', () => { if(window.innerWidth > 1024) document.body.requestPointerLock(); });
-
-        for(let i=0; i<3; i++) spawnEnemy();
+        spawnEnemy();
         updateUI();
         animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
     </script>
 </body>
 </html>
