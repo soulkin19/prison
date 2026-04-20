@@ -3,22 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Tactical PvE - AWM Update</title>
+    <title>3D Tactical PvE - Stage & UZI Update</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; touch-action: none; background: #87ceeb; }
-        #ui { position: absolute; top: 15px; left: 15px; color: #111; pointer-events: none; background: rgba(255,255,255,0.8); padding: 12px; border-radius: 8px; font-weight: bold; border: 2px solid #444; }
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 24px; height: 24px; transform: translate(-50%, -50%); pointer-events: none; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; touch-action: none; background: #000; }
+        #ui { position: absolute; top: 15px; left: 15px; color: #111; pointer-events: none; background: rgba(255,255,255,0.8); padding: 12px; border-radius: 8px; font-weight: bold; border: 2px solid #444; z-index: 5; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; transform: translate(-50%, -50%); pointer-events: none; z-index: 5; }
         #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #00ff00; }
-        #crosshair::before { width: 100%; height: 2px; top: 11px; } #crosshair::after { width: 2px; height: 100%; left: 11px; }
+        #crosshair::before { width: 100%; height: 2px; top: 9px; } #crosshair::after { width: 2px; height: 100%; left: 9px; }
         
-        #ammo-display { position: absolute; bottom: 30px; left: 20px; color: white; text-align: left; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px; border: 1px solid #777; min-width: 140px; }
-        #reload-msg { position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); color: #ffeb3b; font-size: 24px; font-weight: bold; display: none; text-shadow: 2px 2px #000; }
-        #click-to-start { position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; cursor: pointer; z-index: 100; text-align: center; }
+        /* スナイパースコープ演出 */
+        #scope-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, transparent 30%, black 35%, black 100%);
+            display: none; pointer-events: none; z-index: 10;
+        }
+        #scope-overlay::before, #scope-overlay::after {
+            content: ''; position: absolute; background: rgba(0, 255, 0, 0.5);
+        }
+        #scope-overlay::before { width: 100%; height: 1px; top: 50%; }
+        #scope-overlay::after { width: 1px; height: 100%; left: 50%; }
+
+        #ammo-display { position: absolute; bottom: 30px; left: 20px; color: white; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px; border: 1px solid #777; min-width: 140px; z-index: 5; }
+        #reload-msg { position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); color: #ffeb3b; font-size: 24px; font-weight: bold; display: none; text-shadow: 2px 2px #000; z-index: 5; }
+        #click-to-start { position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; cursor: pointer; z-index: 100; text-align: center; }
     </style>
 </head>
 <body>
-    <div id="click-to-start">CLICK TO START<br><span style="font-size:14px;">[WASD]: Move | [Space]: Fire | [Enter]: ADS | [1-3]: Switch Weapon</span></div>
-
+    <div id="click-to-start">CLICK TO DEPLOY<br><span style="font-size:14px;">[WASD]: Move | [Space]: Fire | [Enter]: ADS | [1-4]: Switch Weapon</span></div>
+    <div id="scope-overlay"></div>
     <div id="ui">SCORE: <span id="score">0</span> | WAVE: <span id="wave">1</span> | HP: <span id="health">100</span></div>
     <div id="reload-msg">RELOADING...</div>
     <div id="crosshair"></div>
@@ -35,18 +47,19 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 武器設定 ---
+        // --- ステージ設定 ---
+        const STAGE_SIZE = 100;
+
         const WEAPONS = {
-            S12K: { name: 'S12K', maxAmmo: 4, rpm: 200, reloadTime: 1800, recoil: 0.14, damage: 30, spread: 0.14, pellets: 10, color: 0x1a1a1a, metalness: 0.8, adsFov: 50 },
-            XM7: { name: 'XM7', maxAmmo: 45, rpm: 800, reloadTime: 2200, recoil: 0.04, damage: 35, spread: 0.02, pellets: 1, color: 0x7a6a4f, metalness: 0.5, adsFov: 40 },
-            AWM: { name: 'AWM', maxAmmo: 5, rpm: 50, reloadTime: 3500, recoil: 0.5, damage: 200, spread: 0.001, pellets: 1, color: 0x4a5d4a, metalness: 0.6, adsFov: 20 }
+            S12K: { name: 'S12K', maxAmmo: 4, rpm: 200, reloadTime: 1800, recoil: 0.14, damage: 30, spread: 0.14, pellets: 10, color: 0x1a1a1a, adsFov: 50 },
+            XM7: { name: 'XM7', maxAmmo: 45, rpm: 800, reloadTime: 2200, recoil: 0.04, damage: 35, spread: 0.02, pellets: 1, color: 0x7a6a4f, adsFov: 40 },
+            AWM: { name: 'AWM', maxAmmo: 5, rpm: 45, reloadTime: 3500, recoil: 0.6, damage: 200, spread: 0.001, pellets: 1, color: 0x4a5d4a, adsFov: 15 },
+            UZI: { name: 'UZI', maxAmmo: 32, rpm: 1200, reloadTime: 1500, recoil: 0.03, damage: 15, spread: 0.08, pellets: 1, color: 0x333333, adsFov: 60 }
         };
 
         let currentWeapon = WEAPONS.XM7;
-        let ammo = currentWeapon.maxAmmo;
-        let isReloading = false, isAds = false;
-        let score = 0, wave = 1, playerHealth = 100;
-        let lastFireTime = 0, targetRecoilX = 0;
+        let ammo = currentWeapon.maxAmmo, isReloading = false, isAds = false;
+        let score = 0, wave = 1, playerHealth = 100, lastFireTime = 0, targetRecoilX = 0;
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
@@ -56,53 +69,59 @@
         camera.rotation.order = 'YXZ';
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.6));
         const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-        sun.position.set(20, 50, 20);
+        sun.position.set(30, 60, 30);
         scene.add(sun);
 
-        const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x5a8a5a }));
+        // 地面
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(STAGE_SIZE, STAGE_SIZE), new THREE.MeshStandardMaterial({ color: 0x6a8a6a }));
         floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
 
-        // --- 武器モデル構築 ---
+        // 外壁の設置
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+        const createWall = (w, h, d, x, z) => {
+            const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+            wall.position.set(x, h/2, z);
+            scene.add(wall);
+        };
+        createWall(STAGE_SIZE, 8, 2, 0, STAGE_SIZE/2);  // North
+        createWall(STAGE_SIZE, 8, 2, 0, -STAGE_SIZE/2); // South
+        createWall(2, 8, STAGE_SIZE, STAGE_SIZE/2, 0);  // East
+        createWall(2, 8, STAGE_SIZE, -STAGE_SIZE/2, 0); // West
+
+        // --- 武器モデル ---
         const weaponGroup = new THREE.Group();
         const weaponPivot = new THREE.Group();
         const gunContainer = new THREE.Group();
 
         function buildGunModel(config) {
             gunContainer.clear();
-            const mat = new THREE.MeshStandardMaterial({ 
-                color: config.color,
-                metalness: config.metalness,
-                roughness: 0.4
-            });
+            const mat = new THREE.MeshStandardMaterial({ color: config.color, metalness: 0.6, roughness: 0.4 });
+            
+            // 本体サイズ切り替え
+            let bW = 0.1, bH = 0.15, bL = 0.6;
+            if(config.name === 'UZI') { bW = 0.08; bH = 0.12; bL = 0.35; }
 
-            // 本体
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.6), mat);
+            const body = new THREE.Mesh(new THREE.BoxGeometry(bW, bH, bL), mat);
             gunContainer.add(body);
 
-            // バレル (AWMは特に長く)
-            const barrelLen = config.name === 'AWM' ? 0.8 : 0.4;
+            const barrelLen = config.name === 'AWM' ? 0.8 : (config.name === 'UZI' ? 0.15 : 0.4);
             const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, barrelLen), mat);
             barrel.rotation.x = Math.PI / 2;
-            barrel.position.z = - (0.3 + barrelLen/2);
+            barrel.position.z = - (bL/2 + barrelLen/2);
             gunContainer.add(barrel);
 
-            // マガジン
             const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.2, 0.12), mat);
-            mag.position.set(0, -0.15, -0.1);
+            mag.position.set(0, -0.15, -0.05);
             gunContainer.add(mag);
 
-            // スコープ (AWM用)
             if (config.name === 'AWM') {
-                const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.3), mat);
-                scope.rotation.x = Math.PI / 2;
-                scope.position.y = 0.12;
-                scope.position.z = -0.1;
+                const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3), mat);
+                scope.rotation.x = Math.PI / 2; scope.position.y = 0.12;
                 gunContainer.add(scope);
             }
 
@@ -114,57 +133,51 @@
         weaponGroup.add(weaponPivot);
         scene.add(weaponGroup);
 
-        // --- トレーサー & 敵 ---
-        const tracers = [];
-        const enemies = [];
-        function spawnTracer(start, target) {
-            const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 2), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-            mesh.position.copy(start);
-            mesh.lookAt(target);
-            scene.add(mesh);
-            tracers.push({ mesh, life: 10 });
-        }
-
+        // --- 敵と弾道 ---
+        const tracers = [], enemies = [];
         function spawnEnemy() {
             const e = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1, 4, 8), new THREE.MeshStandardMaterial({ color: 0xcc3333 }));
-            const a = Math.random() * Math.PI * 2;
-            const d = 40 + Math.random() * 20;
-            e.position.set(Math.cos(a)*d, 1, Math.sin(a)*d);
+            // 壁の内側に湧くように調整
+            const margin = 5;
+            let ex = (Math.random() - 0.5) * (STAGE_SIZE - margin * 2);
+            let ez = (Math.random() - 0.5) * (STAGE_SIZE - margin * 2);
+            
+            // プレイヤーに近すぎないように
+            if(Math.abs(ex - camera.position.x) < 10) ex += 15;
+            
+            e.position.set(ex, 1, ez);
             e.userData = { hp: 100, lastAtk: 0 };
             scene.add(e);
             enemies.push(e);
         }
 
-        // --- アクション ---
         function fire() {
             if (isReloading || ammo <= 0 || playerHealth <= 0) return;
             const now = Date.now();
             if (now - lastFireTime < (60000 / currentWeapon.rpm)) return;
 
-            ammo--;
-            lastFireTime = now;
-            updateUI();
-
+            ammo--; lastFireTime = now; updateUI();
             targetRecoilX += currentWeapon.recoil;
-            weaponPivot.position.z += 0.3;
-            weaponPivot.rotation.x -= 0.2;
+            weaponPivot.position.z += 0.2; weaponPivot.rotation.x -= 0.15;
 
             const ray = new THREE.Raycaster();
             for (let i = 0; i < currentWeapon.pellets; i++) {
                 ray.setFromCamera(new THREE.Vector2(0,0), camera);
+                ray.ray.direction.x += (Math.random()-0.5) * currentWeapon.spread;
+                ray.ray.direction.y += (Math.random()-0.5) * currentWeapon.spread;
+
                 const muz = new THREE.Vector3().setFromMatrixPosition(gunContainer.matrixWorld);
                 const tar = ray.ray.origin.clone().add(ray.ray.direction.clone().multiplyScalar(100));
-                spawnTracer(muz, tar);
+                
+                const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 2.5), new THREE.MeshBasicMaterial({ color: 0xffff00 }));
+                mesh.position.copy(muz); mesh.lookAt(tar); scene.add(mesh);
+                tracers.push({ mesh, life: 8 });
 
                 const hits = ray.intersectObjects(enemies);
                 if(hits.length > 0) {
                     const e = hits[0].object;
                     e.userData.hp -= currentWeapon.damage;
-                    if(e.userData.hp <= 0) {
-                        scene.remove(e);
-                        enemies.splice(enemies.indexOf(e), 1);
-                        score += 200;
-                    }
+                    if(e.userData.hp <= 0) { scene.remove(e); enemies.splice(enemies.indexOf(e), 1); score += 100; }
                 }
             }
             if(ammo === 0) reload();
@@ -174,34 +187,36 @@
             if(isReloading || ammo === currentWeapon.maxAmmo) return;
             isReloading = true;
             document.getElementById('reload-msg').style.display = 'block';
-            
-            let start = Date.now();
-            const anim = () => {
-                let elapsed = Date.now() - start;
-                let prog = elapsed / currentWeapon.reloadTime;
-                if(prog < 0.5) { weaponPivot.position.y = -prog * 3; weaponPivot.rotation.z = prog * 2; }
-                else if(prog < 1) { weaponPivot.position.y = -(1 - prog) * 3; weaponPivot.rotation.z = (1 - prog) * 2; }
-                if(prog < 1) requestAnimationFrame(anim);
-                else {
-                    ammo = currentWeapon.maxAmmo;
-                    isReloading = false;
-                    document.getElementById('reload-msg').style.display = 'none';
-                    weaponPivot.position.set(0,0,0);
-                    weaponPivot.rotation.set(0,0,0);
-                    updateUI();
-                }
-            };
-            anim();
+            setTimeout(() => {
+                ammo = currentWeapon.maxAmmo; isReloading = false;
+                document.getElementById('reload-msg').style.display = 'none';
+                updateUI();
+            }, currentWeapon.reloadTime);
         }
 
         function switchWeapon(key) {
-            currentWeapon = WEAPONS[key];
-            buildGunModel(currentWeapon);
-            ammo = currentWeapon.maxAmmo;
-            isAds = false;
-            camera.fov = 75;
+            currentWeapon = WEAPONS[key]; buildGunModel(currentWeapon);
+            ammo = currentWeapon.maxAmmo; isAds = false;
+            updateScope(); updateUI();
+        }
+
+        function updateScope() {
+            camera.fov = isAds ? currentWeapon.adsFov : 75;
             camera.updateProjectionMatrix();
-            updateUI();
+            const scopeOverlay = document.getElementById('scope-overlay');
+            const crosshair = document.getElementById('crosshair');
+            
+            if (isAds && currentWeapon.name === 'AWM') {
+                scopeOverlay.style.display = 'block';
+                crosshair.style.display = 'none';
+                gunContainer.visible = false; // スコープ内は銃を消す
+            } else {
+                scopeOverlay.style.display = 'none';
+                crosshair.style.display = 'block';
+                gunContainer.visible = true;
+                gunContainer.position.x = isAds ? 0 : 0.3;
+                gunContainer.position.y = isAds ? -0.12 : -0.25;
+            }
         }
 
         function updateUI() {
@@ -213,23 +228,17 @@
             document.getElementById('health').innerText = Math.max(0, playerHealth);
         }
 
-        // --- 操作系 (iPad キーボード/マウス特化) ---
+        // --- 操作 ---
         const keys = {};
         window.addEventListener('keydown', (e) => {
             keys[e.code] = true;
             if(e.code === 'Space') { e.preventDefault(); fire(); }
-            if(e.code === 'Enter') { 
-                e.preventDefault(); 
-                isAds = !isAds; 
-                camera.fov = isAds ? currentWeapon.adsFov : 75; 
-                camera.updateProjectionMatrix(); 
-                gunContainer.position.x = isAds ? 0 : 0.3;
-                gunContainer.position.y = isAds ? -0.15 : -0.25;
-            }
+            if(e.code === 'Enter') { e.preventDefault(); isAds = !isAds; updateScope(); }
             if(e.code === 'KeyR') reload();
             if(e.code === 'Digit1') switchWeapon('S12K');
             if(e.code === 'Digit2') switchWeapon('XM7');
             if(e.code === 'Digit3') switchWeapon('AWM');
+            if(e.code === 'Digit4') switchWeapon('UZI');
         });
         window.addEventListener('keyup', (e) => keys[e.code] = false);
 
@@ -242,63 +251,49 @@
             }
         });
 
-        // 画面スワイプによる視点移動も維持 (マウスがない時用)
-        let lastTouchX = 0, lastTouchY = 0;
-        window.addEventListener('touchstart', (e) => {
-            const t = e.touches[0];
-            lastTouchX = t.clientX; lastTouchY = t.clientY;
-        }, {passive: false});
-
-        window.addEventListener('touchmove', (e) => {
-            const t = e.touches[0];
-            const dx = t.clientX - lastTouchX;
-            const dy = t.clientY - lastTouchY;
-            const sens = isAds ? 0.002 : 0.005;
-            camera.rotation.y -= dx * sens;
-            camera.rotation.x -= dy * sens;
-            camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x));
-            lastTouchX = t.clientX; lastTouchY = t.clientY;
-        }, {passive: false});
-
         document.getElementById('click-to-start').addEventListener('click', function() {
             this.style.display = 'none';
             document.body.requestPointerLock();
         });
 
-        // --- メインループ ---
+        // --- ループ ---
         function animate() {
             requestAnimationFrame(animate);
             const now = Date.now();
 
-            if (now - lastFireTime > 150) targetRecoilX *= 0.8;
+            if (now - lastFireTime > 120) targetRecoilX *= 0.8;
             camera.rotation.x += targetRecoilX * 0.1;
-            targetRecoilX *= 0.9;
+            targetRecoilX *= 0.92;
 
-            weaponPivot.position.lerp(new THREE.Vector3(0,0,0), 0.15);
+            weaponPivot.position.lerp(new THREE.Vector3(0,0,0), 0.2);
             weaponPivot.rotation.x *= 0.85;
             weaponGroup.position.copy(camera.position);
             weaponGroup.quaternion.copy(camera.quaternion);
 
             for(let i=tracers.length-1; i>=0; i--) {
-                tracers[i].mesh.translateZ(4.0);
-                tracers[i].life--;
+                tracers[i].mesh.translateZ(4.5); tracers[i].life--;
                 if(tracers[i].life <= 0) { scene.remove(tracers[i].mesh); tracers.splice(i,1); }
             }
 
-            const s = 0.14;
-            if(keys['KeyW']) camera.translateZ(-s);
-            if(keys['KeyS']) camera.translateZ(s);
-            if(keys['KeyA']) camera.translateX(-s);
-            if(keys['KeyD']) camera.translateX(s);
+            const s = 0.15;
+            const nextPos = camera.position.clone();
+            if(keys['KeyW']) nextPos.add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(s));
+            if(keys['KeyS']) nextPos.add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(-s));
+            // 壁の判定（簡易）
+            const limit = STAGE_SIZE / 2 - 2;
+            if(Math.abs(nextPos.x) < limit && Math.abs(nextPos.z) < limit) {
+                camera.position.x = nextPos.x;
+                camera.position.z = nextPos.z;
+            }
             camera.position.y = 1.6;
 
             enemies.forEach(e => {
                 const v = new THREE.Vector3().subVectors(camera.position, e.position);
                 v.y = 0;
-                if(v.length() > 2) e.translateOnAxis(v.normalize(), 0.06 + wave*0.005);
+                if(v.length() > 1.8) e.translateOnAxis(v.normalize(), 0.06 + wave*0.005);
                 else if(playerHealth > 0 && now - e.userData.lastAtk > 1000) {
                     playerHealth -= 10; e.userData.lastAtk = now; updateUI();
-                    if(playerHealth <= 0) { alert("GAMEOVER. SCORE: " + score); location.reload(); }
+                    if(playerHealth <= 0) { alert("DEAD. SCORE: " + score); location.reload(); }
                 }
                 e.lookAt(camera.position.x, 1, camera.position.z);
             });
@@ -307,9 +302,7 @@
             renderer.render(scene, camera);
         }
 
-        for(let i=0; i<3; i++) spawnEnemy();
-        updateUI();
-        animate();
+        spawnEnemy(); updateUI(); animate();
     </script>
 </body>
 </html>
