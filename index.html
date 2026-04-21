@@ -8,9 +8,9 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics.js";
     import { getDatabase, ref, set, get, onValue, update, push } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
-    import { getAuth, TwitterAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
-    // === あなたのFirebase config ===
+    // === あなたのFirebase config（そのまま使用）===
     const firebaseConfig = {
       apiKey: "AIzaSyCwhHspaG94goiCIjVj3h-Un5pBK3JTjMU",
       authDomain: "soulkin-aa3b7.firebaseapp.com",
@@ -26,14 +26,14 @@
     const analytics = getAnalytics(app);
     const db = getDatabase(app);
     const auth = getAuth(app);
-    const provider = new TwitterAuthProvider();
+    const googleProvider = new GoogleAuthProvider();
 
     console.log("✅ global tax game - Firebase初期化完了");
 
-    // グローバル変数（リアルタイムデータ保持）
+    // グローバル変数
     let currentUser = null;
-    let userData = null;      // { cash: number, portfolio: { stockId: {shares: number} }, xScreenName: string }
-    let stocksData = null;    // 全銘柄データ
+    let userData = null;      // { cash, portfolio, googleDisplayName }
+    let stocksData = null;
 
     // ======================
     // デフォルト5銘柄を「すでに上場済み」として記録
@@ -43,11 +43,11 @@
       const snapshot = await get(stocksRef);
       if (!snapshot.exists()) {
         const defaultStocks = {
-          stock1: { id: "stock1", name: "GlobalTech",     price: 1200, lastUpdated: Date.now(), owner: null, ownerX: null },
-          stock2: { id: "stock2", name: "EcoEnergy",      price: 850,  lastUpdated: Date.now(), owner: null, ownerX: null },
-          stock3: { id: "stock3", name: "FinanceKing",    price: 2100, lastUpdated: Date.now(), owner: null, ownerX: null },
-          stock4: { id: "stock4", name: "SpaceXplore",    price: 650,  lastUpdated: Date.now(), owner: null, ownerX: null },
-          stock5: { id: "stock5", name: "MediaMogul",     price: 1450, lastUpdated: Date.now(), owner: null, ownerX: null }
+          stock1: { id: "stock1", name: "GlobalTech",     price: 1200, lastUpdated: Date.now(), owner: null, ownerName: null },
+          stock2: { id: "stock2", name: "EcoEnergy",      price: 850,  lastUpdated: Date.now(), owner: null, ownerName: null },
+          stock3: { id: "stock3", name: "FinanceKing",    price: 2100, lastUpdated: Date.now(), owner: null, ownerName: null },
+          stock4: { id: "stock4", name: "SpaceXplore",    price: 650,  lastUpdated: Date.now(), owner: null, ownerName: null },
+          stock5: { id: "stock5", name: "MediaMogul",     price: 1450, lastUpdated: Date.now(), owner: null, ownerName: null }
         };
         await set(stocksRef, defaultStocks);
         console.log("✅ デフォルト5銘柄を『すでに上場済み』として記録しました");
@@ -55,51 +55,45 @@
     }
 
     // ======================
-    // 新規ユーザーの初期資金設定（10万円）
+    // ユーザー初期データ（資金10万円）→ 匿名でもGoogleでも自動作成
     // ======================
-    async function initUserData(uid, xScreenName) {
+    async function ensureUserData(uid) {
       const userRef = ref(db, `users/${uid}`);
       const snapshot = await get(userRef);
       if (!snapshot.exists()) {
         await set(userRef, {
           cash: 100000,
           portfolio: {},
-          xScreenName: xScreenName
+          googleDisplayName: null
         });
-        console.log("✅ 新規ユーザー初期資金10万円を設定");
+        console.log("✅ 資金10万円を自動付与（ログイン不要）");
       }
     }
 
     // ======================
-    // 1分ごとに株価を自動変動（全プレイヤー共通）
+    // 1分ごとに株価自動変動（全プレイヤー共通）
     // ======================
     async function fluctuatePrices() {
       if (!stocksData) return;
       const updates = {};
       Object.keys(stocksData).forEach(key => {
         const stock = stocksData[key];
-        const changeRate = (Math.random() * 0.10) - 0.05; // ±5%
+        const changeRate = (Math.random() * 0.10) - 0.05;
         let newPrice = Math.max(100, Math.round(stock.price * (1 + changeRate)));
         updates[`stocks/${key}/price`] = newPrice;
         updates[`stocks/${key}/lastUpdated`] = Date.now();
       });
       if (Object.keys(updates).length > 0) {
         await update(ref(db), updates);
-        console.log("📈 1分ごとの株価自動変動を実行");
       }
     }
 
     // ======================
-    // 購入処理（買われるほど価格が上がる）
+    // 購入（買われるほど価格が上がる）
     // ======================
     window.buyStock = async function(stockId, quantity) {
-      if (!currentUser) {
-        alert("Xログインしてください");
-        return;
-      }
       if (quantity < 1) return alert("数量は1以上を入力してください");
 
-      // 最新の株価とユーザー情報を取得
       const stockRef = ref(db, `stocks/${stockId}`);
       const stockSnap = await get(stockRef);
       const stock = stockSnap.val();
@@ -115,18 +109,14 @@
         return;
       }
 
-      // ユーザー側更新（資金減少 + 保有株増加）
       const currentShares = user.portfolio?.[stockId]?.shares || 0;
       const newCash = user.cash - cost;
-      const newPortfolio = {
-        ...user.portfolio,
-        [stockId]: { shares: currentShares + quantity }
-      };
+      const newPortfolio = { ...user.portfolio, [stockId]: { shares: currentShares + quantity } };
 
       await update(userRef, { cash: newCash, portfolio: newPortfolio });
 
-      // 株価を即時上昇（買圧）
-      const impact = 1 + (quantity * 0.0008); // 1株あたり0.08%上昇 → たくさん買うほど大きく上がる
+      // 買圧で価格上昇
+      const impact = 1 + (quantity * 0.0008);
       const newPrice = Math.max(100, Math.round(stock.price * impact));
       await update(stockRef, { price: newPrice, lastUpdated: Date.now() });
 
@@ -134,13 +124,9 @@
     };
 
     // ======================
-    // 売却処理（売られるほど価格が下がる）
+    // 売却（売られるほど価格が下がる）
     // ======================
     window.sellStock = async function(stockId, quantity) {
-      if (!currentUser) {
-        alert("Xログインしてください");
-        return;
-      }
       if (quantity < 1) return alert("数量は1以上を入力してください");
 
       const stockRef = ref(db, `stocks/${stockId}`);
@@ -152,12 +138,8 @@
       const user = userSnap.val();
 
       const currentShares = user.portfolio?.[stockId]?.shares || 0;
-      if (currentShares < quantity) {
-        alert(`❌ 保有株が不足しています！\n保有: ${currentShares}株`);
-        return;
-      }
+      if (currentShares < quantity) return alert(`❌ 保有株が不足しています！`);
 
-      // ユーザー側更新（資金増加 + 保有株減少）
       const revenue = stock.price * quantity;
       const newCash = user.cash + revenue;
       const newPortfolio = { ...user.portfolio };
@@ -166,8 +148,8 @@
 
       await update(userRef, { cash: newCash, portfolio: newPortfolio });
 
-      // 株価を即時下降（売圧）
-      const impact = 1 - (quantity * 0.0008); // 1株あたり0.08%下降 → たくさん売るほど大きく下がる
+      // 売圧で価格下降
+      const impact = 1 - (quantity * 0.0008);
       const newPrice = Math.max(100, Math.round(stock.price * impact));
       await update(stockRef, { price: newPrice, lastUpdated: Date.now() });
 
@@ -175,35 +157,77 @@
     };
 
     // ======================
-    // 株一覧 + 自分の資産をリアルタイム表示
+    // Googleで自分の会社を上場（ログイン必須）
+    // ======================
+    window.listMyStock = async function() {
+      if (!currentUser || currentUser.isAnonymous) {
+        alert("Googleログインしてから上場してください！");
+        return;
+      }
+      const stockName = prompt("上場する会社の名前を入力してください", `${currentUser.displayName} Inc.`);
+      if (!stockName) return;
+
+      const newStockRef = push(ref(db, 'stocks'));
+      await set(newStockRef, {
+        id: newStockRef.key,
+        name: stockName,
+        price: 1000,
+        lastUpdated: Date.now(),
+        owner: currentUser.uid,
+        ownerName: currentUser.displayName || currentUser.email
+      });
+
+      alert(`🎉 「${stockName}」が上場しました！`);
+    };
+
+    // ======================
+    // Googleログイン
+    // ======================
+    async function loginWithGoogle() {
+      try {
+        const result = await signInWithPopup(auth, googleProvider);
+        console.log("✅ Googleログイン成功", result.user.displayName);
+      } catch (error) {
+        console.error("Googleログイン失敗", error);
+        alert("Googleログインに失敗しました");
+      }
+    }
+
+    // ======================
+    // 資産＋株一覧をリアルタイム表示
     // ======================
     function renderAll() {
-      // 1. 自分の資産サマリー
       const summaryEl = document.getElementById('portfolioSummary');
       if (!currentUser || !userData) {
-        summaryEl.innerHTML = `<p style="color:#f59e0b;">Xログインすると資金とポートフォリオが表示されます</p>`;
-      } else {
-        let portfolioValue = 0;
-        if (userData.portfolio && stocksData) {
-          Object.keys(userData.portfolio).forEach(sid => {
-            const shares = userData.portfolio[sid].shares || 0;
-            const price = stocksData[sid]?.price || 0;
-            portfolioValue += shares * price;
-          });
-        }
-        const totalAssets = userData.cash + portfolioValue;
-        summaryEl.innerHTML = `
-          <h2>💰 あなたの資産状況</h2>
-          <div style="display:flex; gap:30px; justify-content:center; font-size:1.3rem; background:#1e2937; padding:15px; border-radius:12px;">
-            <div><strong>@${userData.xScreenName}</strong></div>
-            <div>資金: <strong>¥${userData.cash.toLocaleString()}</strong></div>
-            <div>保有株評価額: <strong>¥${portfolioValue.toLocaleString()}</strong></div>
-            <div style="color:#22c55e;">総資産: <strong>¥${totalAssets.toLocaleString()}</strong></div>
-          </div>
-        `;
+        summaryEl.innerHTML = `<p style="color:#f59e0b;">読み込み中…（自動で資金10万円が付与されます）</p>`;
+        return;
       }
 
-      // 2. 株一覧テーブル
+      let portfolioValue = 0;
+      if (userData.portfolio && stocksData) {
+        Object.keys(userData.portfolio).forEach(sid => {
+          const shares = userData.portfolio[sid].shares || 0;
+          const price = stocksData[sid]?.price || 0;
+          portfolioValue += shares * price;
+        });
+      }
+      const totalAssets = userData.cash + portfolioValue;
+
+      const displayName = currentUser.isAnonymous 
+        ? "👤 ゲスト（ログイン不要）" 
+        : `✅ ${currentUser.displayName || "Googleユーザー"}`;
+
+      summaryEl.innerHTML = `
+        <h2>💰 あなたの資産状況</h2>
+        <div style="display:flex; gap:30px; justify-content:center; font-size:1.3rem; background:#1e2937; padding:15px; border-radius:12px;">
+          <div><strong>${displayName}</strong></div>
+          <div>資金: <strong>¥${userData.cash.toLocaleString()}</strong></div>
+          <div>保有株評価額: <strong>¥${portfolioValue.toLocaleString()}</strong></div>
+          <div style="color:#22c55e;">総資産: <strong>¥${totalAssets.toLocaleString()}</strong></div>
+        </div>
+        ${currentUser.isAnonymous ? `<p style="text-align:center; margin-top:8px; color:#eab308;">※ 今すぐ売買OK！ Googleログインで上場できます</p>` : ''}
+      `;
+
       const container = document.getElementById('stockList');
       if (!stocksData) {
         container.innerHTML = "<p>読み込み中...</p>";
@@ -217,7 +241,7 @@
             <tr style="background:#0f172a; color:#fff;">
               <th style="padding:12px;">銘柄名</th>
               <th style="padding:12px;">現在価格</th>
-              <th style="padding:12px;">所有者（X）</th>
+              <th style="padding:12px;">所有者（Google）</th>
               <th style="padding:12px;">あなたの保有数</th>
               <th style="padding:12px; width:220px;">操作</th>
             </tr>
@@ -227,8 +251,7 @@
 
       Object.keys(stocksData).forEach(key => {
         const s = stocksData[key];
-        const time = new Date(s.lastUpdated).toLocaleTimeString('ja-JP');
-        const ownerText = s.ownerX ? `@${s.ownerX}` : '---';
+        const ownerText = s.ownerName ? s.ownerName : '---';
         const myShares = (userData?.portfolio?.[key]?.shares) || 0;
 
         html += `
@@ -238,16 +261,10 @@
             <td style="padding:12px;">${ownerText}</td>
             <td style="padding:12px; color:#22c55e; font-size:1.1rem;">${myShares}株</td>
             <td style="padding:12px;">
-              <div style="display:flex; gap:8px; justify-content:center; align-items:center;">
+              <div style="display:flex; gap:8px; justify-content:center;">
                 <input id="qty-${key}" type="number" value="10" min="1" style="width:70px; padding:6px; text-align:center; border-radius:6px;">
-                <button onclick="buyStock('${key}', parseInt(document.getElementById('qty-${key}').value) || 1)" 
-                        style="background:#22c55e; color:white; padding:8px 16px; border:none; border-radius:6px; cursor:pointer;">
-                  買う
-                </button>
-                <button onclick="sellStock('${key}', parseInt(document.getElementById('qty-${key}').value) || 1)" 
-                        style="background:#ef4444; color:white; padding:8px 16px; border:none; border-radius:6px; cursor:pointer;">
-                  売る
-                </button>
+                <button onclick="buyStock('${key}', parseInt(document.getElementById('qty-${key}').value) || 1)" style="background:#22c55e; color:white; padding:8px 16px; border:none; border-radius:6px; cursor:pointer;">買う</button>
+                <button onclick="sellStock('${key}', parseInt(document.getElementById('qty-${key}').value) || 1)" style="background:#ef4444; color:white; padding:8px 16px; border:none; border-radius:6px; cursor:pointer;">売る</button>
               </div>
             </td>
           </tr>
@@ -259,60 +276,44 @@
     }
 
     // ======================
-    // Xログイン
-    // ======================
-    async function loginWithX() {
-      try {
-        const result = await signInWithPopup(auth, provider);
-        currentUser = result.user;
-        const xScreenName = currentUser.providerData[0].screenName;
-
-        await initUserData(currentUser.uid, xScreenName);
-
-        document.getElementById('loginBtn').style.display = 'none';
-        console.log("✅ Xログイン完了", currentUser);
-      } catch (error) {
-        console.error("ログイン失敗", error);
-        alert("Xログインに失敗しました");
-      }
-    }
-
-    // ======================
     // メイン処理
     // ======================
     window.onload = () => {
       initDefaultStocks();
 
-      // 1分ごとの自動変動
+      // 1分ごとの株価自動変動（全員共通）
       setInterval(fluctuatePrices, 60000);
 
-      // 株価のリアルタイム監視
+      // 株価リアルタイム監視
       onValue(ref(db, 'stocks'), (snapshot) => {
         stocksData = snapshot.val();
         renderAll();
       });
 
-      // ユーザー認証状態監視
-      onAuthStateChanged(auth, (user) => {
+      // 認証状態監視
+      onAuthStateChanged(auth, async (user) => {
         currentUser = user;
+
         if (user) {
-          // ユーザーデータのリアルタイム監視
+          await ensureUserData(user.uid);
+
           const userRef = ref(db, `users/${user.uid}`);
           onValue(userRef, (snapshot) => {
             userData = snapshot.val();
             renderAll();
           });
         } else {
-          userData = null;
-          renderAll();
+          // まだ誰もいない → 自動で匿名ログイン（資金・売買が即可能に）
+          signInAnonymously(auth).catch(console.error);
         }
+
+        renderAll();
       });
 
-      // ログインボタン
-      document.getElementById('loginBtn').addEventListener('click', loginWithX);
+      // Googleログインボタン
+      document.getElementById('googleLoginBtn').addEventListener('click', loginWithGoogle);
 
-      console.log("🚀 global tax game 本格投資モード 起動完了！");
-      renderAll(); // 初回表示
+      console.log("🚀 global tax game 起動完了！（資金・売買はログイン不要・Googleで上場可能）");
     };
   </script>
   <style>
@@ -328,27 +329,24 @@
   <h1>🌍 global tax game</h1>
   <p style="text-align:center; font-size:1.3rem; margin-bottom:30px;">
     リアルタイム投資ゲーム<br>
-    1分ごとに株価変動 ＋ 買えば上がる・売れば下がる本格マーケット
+    1分ごとに株価変動 ＋ 買えば上がる・売れば下がる<br>
+    <strong>資金・買う・売るは完全ログイン不要！</strong><br>
+    Googleログインで自分の会社を上場できます
   </p>
 
   <div style="text-align:center; margin:20px 0;">
-    <button id="loginBtn" style="padding:14px 32px; font-size:18px; background:#1da1f2; color:white; border:none; border-radius:9999px;">
-      Xでログインして投資を始める
+    <button id="googleLoginBtn" style="padding:14px 32px; font-size:18px; background:#4285f4; color:white; border:none; border-radius:9999px;">
+      Googleでログインして自分の会社を上場する
     </button>
   </div>
 
-  <div id="portfolioSummary" style="text-align:center; min-height:80px;">
-    <!-- 資産サマリーがここに表示 -->
-  </div>
+  <div id="portfolioSummary" style="text-align:center; min-height:80px;"></div>
 
-  <div id="stockList" style="margin-top:20px;">
-    <!-- 株一覧がリアルタイム表示 -->
-  </div>
+  <div id="stockList" style="margin-top:20px;"></div>
 
   <p style="text-align:center; margin-top:60px; font-size:0.95rem; color:#64748b;">
-    初回アクセスで5銘柄が自動上場されます。<br>
-    買うほど価格が上がる・売るほど下がるリアルな需給メカニズム搭載<br>
-    資金10万円スタートで本格投資をお楽しみください！
+    ※ Firebaseコンソールで「Anonymous」と「Google」認証を有効にしてください<br>
+    ページを開いた瞬間に自動で資金10万円が付与され、すぐに売買できます
   </p>
 </body>
 </html>
