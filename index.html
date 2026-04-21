@@ -2,35 +2,33 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>3D FPS - XM7 & AWM</title>
+    <title>3D FPS - Minimal Start</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #000; }
+        /* 照準器 */
         #crosshair {
             position: absolute; top: 50%; left: 50%;
-            width: 20px; height: 20px; border: 2px solid rgba(0,255,0,0.5);
+            width: 14px; height: 14px; border: 2px solid rgba(0,255,0,0.7);
             border-radius: 50%; transform: translate(-50%, -50%);
+            pointer-events: none; z-index: 10;
+        }
+        /* UI表示 */
+        #ui {
+            position: absolute; bottom: 30px; left: 30px;
+            color: white; background: rgba(0,0,0,0.6); padding: 15px;
+            border-radius: 8px; border-left: 5px solid #ff4444;
             pointer-events: none;
         }
-        #ui {
-            position: absolute; bottom: 20px; left: 20px;
-            color: white; background: rgba(0,0,0,0.5); padding: 10px;
-        }
-        #instructions {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: white; background: rgba(0,0,0,0.8); padding: 20px; text-align: center;
-        }
+        .ammo-bar { font-size: 24px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div id="crosshair"></div>
 <div id="ui">
-    Weapon: <span id="weapon-name">XM7</span><br>
-    Ammo: <span id="ammo">30 / ∞</span>
-</div>
-<div id="instructions">
-    <h1>CLICK TO PLAY</h1>
-    WASD: 移動 | 1, 2: 武器切替 | ENTER: ADS(スコープ) | SPACE: 射撃
+    <div style="font-size: 12px; color: #aaa;">WEAPON</div>
+    <div id="weapon-name" style="font-size: 20px; font-weight: bold; margin-bottom: 5px;">XM7 (Assault)</div>
+    <div class="ammo-bar">AMMO: <span id="ammo">30</span> / ∞</div>
 </div>
 
 <script type="importmap">
@@ -42,44 +40,46 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/PointerLockControls.js';
 
 // --- 設定 ---
-const STAGE_SIZE = 100;
+const STAGE_SIZE = 150;
 const WEAPONS = {
-    xm7: { name: 'XM7', zoom: 1.25, recoil: 0.05, speed: 100, ammo: 30, color: 0x555555, size: [0.1, 0.1, 0.5] },
-    awm: { name: 'AWM', zoom: 4.0, recoil: 0.2, speed: 800, ammo: 5, color: 0x224422, size: [0.1, 0.1, 0.8] }
+    xm7: { name: 'XM7', zoom: 1.25, recoil: 0.04, speed: 120, ammo: 30, color: 0x333333, size: [0.08, 0.1, 0.6] },
+    awm: { name: 'AWM', zoom: 4.0, recoil: 0.25, speed: 1000, ammo: 5, color: 0x1a2e1a, size: [0.08, 0.1, 1.0] }
 };
 
 let currentWeapon = WEAPONS.xm7;
 let isAds = false;
-let isReloading = false;
+let isFiring = false;
 
-// --- シーン構築 ---
+// --- シーン/カメラ/レンダラー ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // 青空
+scene.background = new THREE.Color(0x111122); // 夜っぽい雰囲気
+scene.fog = new THREE.Fog(0x111122, 10, 100); // 霧で遠くを隠す
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
-scene.add(light);
+const controls = new PointerLockControls(camera, document.body);
 
-// 地面
+// 画面クリックで即座にコントロール開始
+document.addEventListener('click', () => {
+    if (!controls.isLocked) controls.lock();
+});
+
+// ライト
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+scene.add(hemiLight);
+
+// --- 地面と壁 ---
 const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(STAGE_SIZE, STAGE_SIZE),
-    new THREE.MeshStandardMaterial({ color: 0x448844 })
+    new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 })
 );
 floor.rotation.x = -Math.PI / 2;
 scene.add(floor);
 
-// --- プレイヤー & 武器 ---
-const controls = new PointerLockControls(camera, document.body);
-const instructions = document.getElementById('instructions');
-
-instructions.addEventListener('click', () => controls.lock());
-controls.addEventListener('lock', () => instructions.style.display = 'none');
-controls.addEventListener('unlock', () => instructions.style.display = 'block');
-
+// --- 武器の構築 ---
 const weaponGroup = new THREE.Group();
 camera.add(weaponGroup);
 scene.add(camera);
@@ -88,37 +88,27 @@ let weaponMesh;
 function createWeaponMesh(config) {
     if (weaponMesh) weaponGroup.remove(weaponMesh);
     const geo = new THREE.BoxGeometry(...config.size);
-    const mat = new THREE.MeshStandardMaterial({ color: config.color });
+    const mat = new THREE.MeshStandardMaterial({ color: config.color, metalness: 0.8 });
     weaponMesh = new THREE.Mesh(geo, mat);
-    weaponMesh.position.set(0.3, -0.2, -0.5);
+    weaponMesh.position.set(0.3, -0.25, -0.5);
     weaponGroup.add(weaponMesh);
 }
 createWeaponMesh(currentWeapon);
 
-// --- 敵 (BOT) ---
+// --- 敵BOT ---
 const enemies = [];
 function spawnBot() {
-    const geo = new THREE.BoxGeometry(1, 2, 1);
-    const mat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-    const bot = new THREE.Mesh(geo, mat);
-    bot.position.set(Math.random() * 40 - 20, 1, Math.random() * 40 - 20);
+    const bot = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
+    bot.add(body);
+    bot.position.set(Math.random() * 80 - 40, 1, Math.random() * 80 - 40);
     bot.userData = { health: 100 };
     scene.add(bot);
     enemies.push(bot);
 }
-for(let i=0; i<5; i++) spawnBot();
+for(let i=0; i<8; i++) spawnBot();
 
-// --- 入力制御 ---
-const keys = {};
-document.addEventListener('keydown', (e) => {
-    keys[e.code] = true;
-    if (e.key === '1') switchWeapon(WEAPONS.xm7);
-    if (e.key === '2') switchWeapon(WEAPONS.awm);
-    if (e.code === 'Enter') toggleAds();
-    if (e.code === 'Space') fire();
-});
-document.addEventListener('keyup', (e) => keys[e.code] = false);
-
+// --- アクション ---
 function switchWeapon(w) {
     currentWeapon = w;
     createWeaponMesh(w);
@@ -132,31 +122,45 @@ function toggleAds() {
     isAds = !isAds;
     camera.fov = isAds ? 75 / currentWeapon.zoom : 75;
     camera.updateProjectionMatrix();
-    weaponMesh.position.x = isAds ? 0 : 0.3; // センターに寄せる
+    weaponMesh.position.x = isAds ? 0 : 0.3;
+    weaponMesh.position.z = isAds ? -0.3 : -0.5;
 }
 
 function fire() {
-    if (isReloading) return;
+    if (isFiring || !controls.isLocked) return;
     
-    // 反動 (Recoil)
+    // 反動
     camera.rotation.x += currentWeapon.recoil;
+    weaponMesh.position.z += 0.1; // 銃が後ろに下がる演出
     
-    // 弾道計算 (Raycaster)
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-    const hits = raycaster.intersectObjects(enemies);
+    const hits = raycaster.intersectObjects(enemies, true);
     
     if (hits.length > 0) {
-        const target = hits[0].object;
-        scene.remove(target); // 敵を倒す
+        let target = hits[0].object.parent; 
+        scene.remove(target);
         enemies.splice(enemies.indexOf(target), 1);
-        setTimeout(spawnBot, 2000); // 2秒後にリスポーン
+        setTimeout(spawnBot, 3000);
     }
 
-    // 発射演出（簡易リロード）
-    isReloading = true;
-    setTimeout(() => isReloading = false, currentWeapon.speed);
+    isFiring = true;
+    setTimeout(() => {
+        isFiring = false;
+        weaponMesh.position.z = isAds ? -0.3 : -0.5;
+    }, currentWeapon.speed);
 }
+
+// --- 入力ハンドラ ---
+const keys = {};
+window.addEventListener('keydown', (e) => {
+    keys[e.code] = true;
+    if (e.key === '1') switchWeapon(WEAPONS.xm7);
+    if (e.key === '2') switchWeapon(WEAPONS.awm);
+    if (e.code === 'Enter') toggleAds();
+    if (e.code === 'Space') fire();
+});
+window.addEventListener('keyup', (e) => keys[e.code] = false);
 
 // --- メインループ ---
 const velocity = new THREE.Vector3();
@@ -166,26 +170,27 @@ function animate() {
     requestAnimationFrame(animate);
 
     if (controls.isLocked) {
-        // 移動処理
-        const delta = 0.15;
-        velocity.x -= velocity.x * 10.0 * delta;
-        velocity.z -= velocity.z * 10.0 * delta;
+        const delta = 0.016; // 約60fps
+        
+        // 移動減衰
+        velocity.x *= 0.9;
+        velocity.z *= 0.9;
 
         direction.z = Number(keys['KeyW']) - Number(keys['KeyS']);
         direction.x = Number(keys['KeyD']) - Number(keys['KeyA']);
         direction.normalize();
 
-        if (keys['KeyW'] || keys['KeyS']) velocity.z -= direction.z * 400.0 * delta;
-        if (keys['KeyA'] || keys['KeyD']) velocity.x -= direction.x * 400.0 * delta;
+        if (keys['KeyW'] || keys['KeyS']) velocity.z -= direction.z * 60.0 * delta;
+        if (keys['KeyA'] || keys['KeyD']) velocity.x -= direction.x * 60.0 * delta;
 
-        controls.moveRight(-velocity.x * delta);
-        controls.moveForward(-velocity.z * delta);
+        controls.moveRight(-velocity.x);
+        controls.moveForward(-velocity.z);
 
-        // BOTの簡易AI (プレイヤーを追う)
+        // BOTの移動
         enemies.forEach(bot => {
             const dir = new THREE.Vector3().subVectors(camera.position, bot.position).normalize();
-            bot.position.x += dir.x * 0.05;
-            bot.position.z += dir.z * 0.05;
+            bot.position.x += dir.x * 0.03;
+            bot.position.z += dir.z * 0.03;
             bot.lookAt(camera.position.x, 1, camera.position.z);
         });
     }
@@ -194,7 +199,6 @@ function animate() {
 }
 animate();
 
-// 画面リサイズ対応
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
