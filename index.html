@@ -37,6 +37,15 @@
         .profile-icon {
             box-shadow: 0 0 0 8px rgba(148, 163, 184, 0.2);
         }
+
+        .hobby-tag {
+            transition: all 0.2s ease;
+        }
+        .hobby-tag:hover {
+            transform: scale(1.05);
+            background-color: #a78bfa !important;
+            color: #0f172a !important;
+        }
     </style>
 </head>
 <body class="min-h-screen pb-12">
@@ -55,7 +64,7 @@
                     <input 
                         id="searchInput"
                         type="text" 
-                        placeholder="ヒカマー名・@ハンドルで検索..."
+                        placeholder="ヒカマー名・@ハンドル・趣味で検索..."
                         class="w-full bg-slate-800 text-white placeholder:text-slate-400 border border-slate-700 focus:border-violet-500 rounded-3xl py-4 px-6 pl-14 text-lg outline-none transition-all"
                     >
                     <div class="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400">
@@ -85,7 +94,7 @@
         <div class="flex justify-between items-end mt-10 mb-6">
             <div>
                 <h2 id="listTitle" class="text-3xl font-bold">ヒカマー一覧</h2>
-                <p id="resultText" class="text-slate-400">五十音順で並んでいます</p>
+                <p id="resultText" class="text-slate-400">五十音順で並んでいます（趣味も検索対象）</p>
             </div>
             <button onclick="resetView()" 
                     class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium">
@@ -103,7 +112,7 @@
         <div id="emptyMessage" class="hidden text-center py-20">
             <div class="text-6xl mb-6">🤔</div>
             <h3 class="text-2xl font-medium mb-2">該当するヒカマーが見つかりません</h3>
-            <p class="text-slate-400">別のキーワードで検索してみてください</p>
+            <p class="text-slate-400">別のキーワード（名前・ハンドル・趣味）で検索してみてください</p>
         </div>
     </div>
 
@@ -128,7 +137,7 @@
 
     <script>
         // ========================
-        // ヒカマーデータ（ここに実際のヒカマーをすべて追加してください）
+        // ヒカマーデータ（趣味フィールドを追加して検索を大幅強化！）
         // ========================
         let hikamers = [
             {
@@ -137,7 +146,8 @@
                 username: "@soul_kinmani",
                 icon: "https://pbs.twimg.com/profile_images/2043678532329766912/gkaNQ1HR_400x400.jpg",
                 bio: "このサイトの製作者。shomaru7が好き",
-                xLink: "https://x.com/soul_kinmani"
+                xLink: "https://x.com/soul_kinmani",
+                hobbies: ["プログラミング", "ウェブ開発", "ヒカキン好き", "サイト制作"]
             },
             {
                 id: "izumi_hkmr",
@@ -145,7 +155,8 @@
                 username: "@hikakin",
                 icon: "https://pbs.twimg.com/profile_images/2006602716844535810/zaKv0MUS_400x400.jpg",
                 bio: "ヒカキン本物。鬼茶とみそきんという独自商品をセブンイレブンにて発売。",
-                xLink: "https://x.com/hikakin"
+                xLink: "https://x.com/hikakin",
+                hobbies: ["YouTube", "商品開発", "ゲーム実況", "お菓子", "鬼茶"]
             },
             {
                 id: "umi_hkmr",
@@ -153,7 +164,8 @@
                 username: "@maebahesiru2",
                 icon: "https://picsum.photos/id/102/300/300",
                 bio: "様々な便利ツールの製作者。TCGなど面白いものがたくさん。",
-                xLink: "https://x.com/maebahesioru2"
+                xLink: "https://x.com/maebahesioru2",
+                hobbies: ["ツール開発", "TCG", "プログラミング", "カードゲーム", "便利ツール"]
             },
             {
                 id: "emi_hkmr",
@@ -161,7 +173,8 @@
                 username: "@emi_hkmr",
                 icon: "https://picsum.photos/id/1009/300/300",
                 bio: "笑顔のヒカマー。みんなの元気チャージ担当☆",
-                xLink: "https://x.com/emi_hkmr"
+                xLink: "https://x.com/emi_hkmr",
+                hobbies: ["コミュニケーション", "元気チャージ", "笑顔", "癒し", "イベント"]
             },
             {
                 id: "ota_hkmr",
@@ -169,7 +182,8 @@
                 username: "@ota_hkmr",
                 icon: "https://picsum.photos/id/1015/300/300",
                 bio: "ヒカマーズのまとめ役。情報収集が趣味です📚",
-                xLink: "https://x.com/ota_hkmr"
+                xLink: "https://x.com/ota_hkmr",
+                hobbies: ["情報収集", "まとめ", "読書", "データ分析", "リサーチ"]
             },
             {
                 id: "kaori_hkmr",
@@ -177,7 +191,8 @@
                 username: "@kaori_hkmr",
                 icon: "https://picsum.photos/id/133/300/300",
                 bio: "香りとヒカマを愛するアーティスト。創作活動中🎨",
-                xLink: "https://x.com/kaori_hkmr"
+                xLink: "https://x.com/kaori_hkmr",
+                hobbies: ["アート", "創作", "香り", "イラスト", "デザイン"]
             },
             {
                 id: "kirari_hkmr",
@@ -185,7 +200,8 @@
                 username: "@kirari_hkmr",
                 icon: "https://picsum.photos/id/160/300/300",
                 bio: "キラキラヒカマー！毎日かわいいものを発信しています✨",
-                xLink: "https://x.com/kirari_hkmr"
+                xLink: "https://x.com/kirari_hkmr",
+                hobbies: ["かわいいもの", "キラキラ", "ファッション", "SNS発信", "コスメ"]
             },
             {
                 id: "kuma_hkmr",
@@ -193,7 +209,8 @@
                 username: "@kuma_hkmr",
                 icon: "https://picsum.photos/id/201/300/300",
                 bio: "クマのような癒し系ヒカマー。みんなを優しく包み込みます🐻",
-                xLink: "https://x.com/kuma_hkmr"
+                xLink: "https://x.com/kuma_hkmr",
+                hobbies: ["癒し", "動物", "クマグッズ", "リラックス", "優しさ"]
             },
             {
                 id: "sora_hkmr",
@@ -201,7 +218,8 @@
                 username: "@sora_hkmr",
                 icon: "https://picsum.photos/id/211/300/300",
                 bio: "空のように自由なヒカマー。旅と写真が好きです☁️",
-                xLink: "https://x.com/sora_hkmr"
+                xLink: "https://x.com/sora_hkmr",
+                hobbies: ["旅", "写真", "アウトドア", "風景撮影", "自由"]
             },
             {
                 id: "nana_hkmr",
@@ -209,7 +227,8 @@
                 username: "@nana_hkmr",
                 icon: "https://picsum.photos/id/251/300/300",
                 bio: "7色のヒカマー。みんなの日常をカラフルに彩ります🌈",
-                xLink: "https://x.com/nana_hkmr"
+                xLink: "https://x.com/nana_hkmr",
+                hobbies: ["カラフル", "日常", "アート", "カラーリング", "デザイン"]
             }
         ]
 
@@ -220,18 +239,27 @@
             })
         }
 
-        // 検索フィルター
+        // 検索フィルター（強化版：趣味も完全対応）
         function filterHikamers(query) {
             if (!query) return hikamers
-            const q = query.toLowerCase()
-            return hikamers.filter(h => 
-                h.displayName.toLowerCase().includes(q) ||
-                h.username.toLowerCase().includes(q) ||
-                h.bio.toLowerCase().includes(q)
-            )
+            const q = query.toLowerCase().trim()
+            
+            return hikamers.filter(h => {
+                // 名前・ハンドル・Bio検索（従来通り）
+                const nameMatch = h.displayName.toLowerCase().includes(q)
+                const usernameMatch = h.username.toLowerCase().includes(q)
+                const bioMatch = h.bio.toLowerCase().includes(q)
+                
+                // 趣味検索（配列内のどれかに含まれるか）
+                const hobbyMatch = h.hobbies.some(hobby => 
+                    hobby.toLowerCase().includes(q)
+                )
+                
+                return nameMatch || usernameMatch || bioMatch || hobbyMatch
+            })
         }
 
-        // 一覧をレンダリング
+        // 一覧をレンダリング（趣味タグも表示）
         function renderList(filtered) {
             const container = document.getElementById('listContainer')
             container.innerHTML = ''
@@ -243,6 +271,11 @@
             document.getElementById('emptyMessage').classList.add('hidden')
 
             filtered.forEach(h => {
+                // 趣味タグのHTML生成
+                const hobbyTags = h.hobbies.map(hobby => `
+                    <span class="hobby-tag text-xs bg-slate-700 text-slate-300 px-3 py-1 rounded-3xl whitespace-nowrap">${hobby}</span>
+                `).join('')
+
                 const cardHTML = `
                     <div onclick="showProfile('${h.id}')" 
                          class="card-hover bg-slate-800 rounded-3xl p-6 cursor-pointer flex flex-col items-center text-center border border-transparent hover:border-violet-400">
@@ -250,7 +283,12 @@
                              class="w-24 h-24 rounded-2xl object-cover mb-5 shadow-inner">
                         <h3 class="text-2xl font-bold mb-1">${h.displayName}</h3>
                         <p class="text-violet-400 font-medium mb-3">${h.username}</p>
-                        <p class="text-slate-400 text-sm line-clamp-2">${h.bio}</p>
+                        <p class="text-slate-400 text-sm line-clamp-2 mb-4">${h.bio}</p>
+                        
+                        <!-- 趣味タグ -->
+                        <div class="flex flex-wrap gap-2 justify-center w-full">
+                            ${hobbyTags}
+                        </div>
                     </div>
                 `
                 container.innerHTML += cardHTML
@@ -260,13 +298,18 @@
             document.getElementById('totalCount').textContent = hikamers.length
         }
 
-        // プロフィール表示
+        // プロフィール表示（趣味セクションを追加）
         function showProfile(id) {
             const user = hikamers.find(h => h.id === id)
             if (!user) return
 
             const modal = document.getElementById('profileModal')
             const content = document.getElementById('modalContent')
+
+            // 趣味タグHTML
+            const hobbyTagsHTML = user.hobbies.map(hobby => `
+                <span class="hobby-tag text-sm bg-slate-700 text-slate-300 px-5 py-2 rounded-3xl whitespace-nowrap">${hobby}</span>
+            `).join('')
 
             content.innerHTML = `
                 <div class="flex flex-col items-center">
@@ -281,6 +324,16 @@
                     <!-- プロフィール本文 -->
                     <div class="bg-slate-900 rounded-2xl p-6 w-full mb-8">
                         <p class="text-slate-300 leading-relaxed text-lg">${user.bio}</p>
+                    </div>
+                    
+                    <!-- 趣味セクション（新設） -->
+                    <div class="w-full mb-8">
+                        <h4 class="text-sm uppercase tracking-widest text-violet-400 font-medium mb-3 flex items-center gap-2">
+                            <span>🎨</span> 趣味・興味
+                        </h4>
+                        <div class="flex flex-wrap gap-2">
+                            ${hobbyTagsHTML}
+                        </div>
                     </div>
                     
                     <!-- Xリンク -->
@@ -347,7 +400,7 @@
             // 初期一覧表示
             renderList(hikamers)
             
-            // 検索イベント
+            // 検索イベント（リアルタイムで強力検索）
             const searchInput = document.getElementById('searchInput')
             searchInput.addEventListener('input', () => {
                 const query = searchInput.value.trim()
@@ -368,8 +421,13 @@
                 handleHashChange()
             }
             
-            console.log('%c✅ ヒカマーズ図鑑が正常に起動しました！', 'color:#a78bfa; font-size:16px; font-weight:bold')
-            console.log('💡 ヒント：hikamers配列に新しいヒカマーを追加して、五十音順で自動並び替えされます')
+            console.log('%c✅ ヒカマーズ図鑑が正常に起動しました！（検索強化版）', 'color:#a78bfa; font-size:16px; font-weight:bold')
+            console.log('💡 強化ポイント：')
+            console.log('・趣味フィールドを全ヒカマーに追加')
+            console.log('・検索対象に「趣味」を完全追加（名前・ハンドル・Bio・趣味すべてヒット）')
+            console.log('・カードとモーダルに趣味タグを美しく表示')
+            console.log('・検索ヒントを更新（「趣味で検索...」）')
+            console.log('・今後新しいヒカマーを追加するときも hobbies: ["趣味1", "趣味2"] でOK！')
         }
 
         // 起動！
