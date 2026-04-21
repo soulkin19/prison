@@ -3,382 +3,246 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tactical PvE - Advanced Edition</title>
+    <title>Dark Survival - Laser & Flashlight</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; touch-action: none; background: #000; }
-        #ui { position: absolute; top: 15px; left: 15px; color: #111; pointer-events: none; background: rgba(255,255,255,0.8); padding: 12px; border-radius: 8px; font-weight: bold; border: 2px solid #444; z-index: 5; }
-        
-        /* クロスヘアとヒットインジケーター */
+        body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; touch-action: none; background: #000; }
+        #ui { position: absolute; top: 15px; left: 15px; color: #00ff00; pointer-events: none; background: rgba(0,20,0,0.7); padding: 15px; border-radius: 5px; border: 1px solid #00ff00; z-index: 5; }
         #crosshair-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 5; }
-        #crosshair { width: 20px; height: 20px; position: relative; }
-        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #00ff00; }
-        #crosshair::before { width: 100%; height: 2px; top: 9px; } #crosshair::after { width: 2px; height: 100%; left: 9px; }
-        
-        #hit-marker { position: absolute; top: 0; left: 0; width: 20px; height: 20px; display: none; }
-        #hit-marker::before, #hit-marker::after { content: ''; position: absolute; background: #ff4444; width: 100%; height: 2px; top: 9px; }
+        #crosshair { width: 4px; height: 4px; background: #00ff00; border-radius: 50%; }
+        #hit-marker { position: absolute; top: -10px; left: -10px; width: 24px; height: 24px; display: none; }
+        #hit-marker::before, #hit-marker::after { content: ''; position: absolute; background: #ff4444; width: 100%; height: 2px; top: 11px; }
         #hit-marker::before { transform: rotate(45deg); } #hit-marker::after { transform: rotate(-45deg); }
-
-        #scope-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle at center, transparent 30%, black 35%, black 100%);
-            display: none; pointer-events: none; z-index: 10;
-        }
-
-        #ammo-display { position: absolute; bottom: 30px; left: 20px; color: white; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px; border: 1px solid #777; min-width: 160px; z-index: 5; }
-        #reload-msg { position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); color: #ffeb3b; font-size: 24px; font-weight: bold; display: none; text-shadow: 2px 2px #000; z-index: 5; }
-        #click-to-start { position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; cursor: pointer; z-index: 100; text-align: center; }
-        #log { font-size: 12px; color: #00ff00; margin-top: 5px; }
+        #ammo-display { position: absolute; bottom: 30px; left: 20px; color: #00ff00; background: rgba(0,20,0,0.8); padding: 15px; border-radius: 5px; border: 1px solid #00ff00; min-width: 180px; z-index: 5; }
+        #reload-msg { position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); color: #ff0000; font-size: 28px; font-weight: bold; display: none; text-shadow: 0 0 10px #ff0000; z-index: 5; }
+        #click-to-start { position: absolute; width: 100%; height: 100%; background: #000; display: flex; align-items: center; justify-content: center; color: #00ff00; font-size: 24px; cursor: pointer; z-index: 100; text-align: center; border: 5px solid #004400; box-sizing: border-box; }
+        .stat-up { color: #fff; font-size: 12px; }
     </style>
 </head>
 <body>
-    <div id="click-to-start">CLICK TO DEPLOY<br><span style="font-size:14px;">[WASD]: Move | [Space]: Fire | [Enter]: ADS | [1-4]: Weapon Swap<br>Score 500 for Auto-Upgrade!</span></div>
-    <div id="scope-overlay"></div>
+    <div id="click-to-start">SYSTEM INITIALIZING...<br>[ CLICK TO START DEPLOYMENT ]<br><span style="font-size:14px; color:#666;">Flashlight & Laser Online | High-Spec Weapons Detected</span></div>
     <div id="ui">
         SCORE: <span id="score">0</span> | HP: <span id="health">100</span>
-        <div id="log">SYSTEM READY...</div>
+        <div id="weapon-lv" style="color: #ffeb3b; margin-top:5px;">Lv.1 ALPHA</div>
     </div>
     <div id="reload-msg">RELOADING...</div>
-    
-    <div id="crosshair-container">
-        <div id="crosshair"></div>
-        <div id="hit-marker"></div>
-    </div>
-
+    <div id="crosshair-container"><div id="crosshair"></div><div id="hit-marker"></div></div>
     <div id="ammo-display">
-        <div id="weapon-name" style="color: #ffeb3b; font-size: 1.2em;">XM7</div>
-        <div style="font-size: 24px;"><span id="current-ammo">45</span> / <span id="max-ammo">45</span></div>
-        <div id="weapon-lv" style="font-size: 14px; color: #aaa;">Lv.1 Standard</div>
+        <div id="weapon-name" style="font-size: 1.4em; color: #fff;">XM7 ADVANCED</div>
+        <div style="font-size: 24px;"><span id="current-ammo">40</span> / <span id="max-ammo">40</span></div>
+        <div id="upgrade-info" class="stat-up">Next Upgrade at 500</div>
     </div>
 
-    <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
-    </script>
-
+    <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
     <script type="module">
         import * as THREE from 'three';
 
         // --- 設定 ---
-        const STAGE_SIZE = 120;
-        let spawnInterval = 1800; 
-        const MAX_ENEMIES = 20;
-
-        const WEAPONS = {
-            S12K: { name: 'S12K', lv: 1, maxAmmo: 5, ammo: 5, rpm: 180, reloadTime: 1800, recoil: 0.15, damage: 25, spread: 0.15, pellets: 10, color: 0x1a1a1a, adsFov: 50 },
-            XM7: { name: 'XM7', lv: 1, maxAmmo: 40, ammo: 40, rpm: 750, reloadTime: 2000, recoil: 0.05, damage: 30, spread: 0.03, pellets: 1, color: 0x7a6a4f, adsFov: 40 },
-            AWM: { name: 'AWM', lv: 1, maxAmmo: 5, ammo: 5, rpm: 40, reloadTime: 3000, recoil: 0.7, damage: 250, spread: 0.001, pellets: 1, color: 0x4a5d4a, adsFov: 12 },
-            UZI: { name: 'UZI', lv: 1, maxAmmo: 32, ammo: 32, rpm: 1100, reloadTime: 1400, recoil: 0.03, damage: 14, spread: 0.09, pellets: 1, color: 0x333333, adsFov: 60 }
-        };
-
-        let currentWeapon = WEAPONS.XM7;
-        let isReloading = false, isAds = false;
-        let score = 0, playerHealth = 100, lastFireTime = 0, targetRecoilX = 0, lastSpawnTime = 0;
+        const STAGE_SIZE = 150;
+        let score = 0, playerHealth = 100, lastFireTime = 0, lastSpawnTime = 0;
         let nextUpgradeScore = 500;
 
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x111122);
-        scene.fog = new THREE.Fog(0x111122, 10, 100);
+        const WEAPONS = {
+            XM7: { name: 'XM7', lv: 1, ammo: 40, maxAmmo: 40, rpm: 600, reloadTime: 1800, damage: 35, recoil: 0.04, spread: 0.02, color: 0x222222 },
+            S12K: { name: 'S12K', lv: 1, ammo: 8, maxAmmo: 8, rpm: 150, reloadTime: 2200, damage: 30, recoil: 0.2, spread: 0.18, color: 0x111111, pellets: 8 }
+        };
+        let currentWeapon = WEAPONS.XM7;
+        let isReloading = false;
 
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 1000);
+        // --- シーン構築 ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x020205);
+        scene.fog = new THREE.Fog(0x000000, 1, 50);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.rotation.order = 'YXZ';
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        scene.add(new THREE.AmbientLight(0x444444, 0.5));
-        const moonLight = new THREE.DirectionalLight(0xaaaaff, 0.8);
-        moonLight.position.set(50, 100, 50);
-        scene.add(moonLight);
+        // 暗闇の設定
+        scene.add(new THREE.AmbientLight(0x000000)); // 環境光なし
 
-        const floor = new THREE.Mesh(new THREE.PlaneGeometry(STAGE_SIZE, STAGE_SIZE), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+        // 床
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(STAGE_SIZE, STAGE_SIZE), floorMat);
         floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
 
-        // 武器モデル & マズルフラッシュ用ライト
+        // 武器とライトのグループ
         const weaponGroup = new THREE.Group();
-        const weaponPivot = new THREE.Group();
-        const gunContainer = new THREE.Group();
-        const muzzleFlashLight = new THREE.PointLight(0xffaa00, 0, 10);
-        gunContainer.add(muzzleFlashLight);
-        
-        // マズルフラッシュの視覚効果（小さな球体）
-        const muzzleFlashMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(0.1),
-            new THREE.MeshBasicMaterial({ color: 0xffcc00 })
-        );
-        muzzleFlashMesh.visible = false;
-        gunContainer.add(muzzleFlashMesh);
+        const flashLight = new THREE.SpotLight(0xffffff, 40, 60, Math.PI / 6, 0.5, 1);
+        flashLight.position.set(0, 0, 0);
+        flashLight.target.position.set(0, 0, -10);
+        weaponGroup.add(flashLight);
+        weaponGroup.add(flashLight.target);
 
-        function buildGunModel(config) {
-            gunContainer.clear();
-            gunContainer.add(muzzleFlashLight);
-            gunContainer.add(muzzleFlashMesh);
-            const mat = new THREE.MeshStandardMaterial({ color: config.color, metalness: 0.8, roughness: 0.2 });
-            let bW = 0.1, bH = 0.15, bL = 0.6;
-            if(config.name === 'UZI') { bW = 0.08; bH = 0.12; bL = 0.35; }
-            const body = new THREE.Mesh(new THREE.BoxGeometry(bW, bH, bL), mat);
-            gunContainer.add(body);
-            const barrelLen = config.name === 'AWM' ? 0.9 : (config.name === 'UZI' ? 0.15 : 0.4);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, barrelLen), mat);
-            barrel.rotation.x = Math.PI / 2; barrel.position.z = - (bL/2 + barrelLen/2);
-            gunContainer.add(barrel);
-            muzzleFlashLight.position.z = barrel.position.z - barrelLen/2;
-            muzzleFlashMesh.position.z = muzzleFlashLight.position.z;
-            
-            gunContainer.position.set(0.3, -0.25, -0.6);
-            return gunContainer;
-        }
+        // レーザーサイト
+        const laserGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-100)]);
+        const laserMat = new THREE.LineBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.5 });
+        const laser = new THREE.Line(laserGeo, laserMat);
+        weaponGroup.add(laser);
 
-        weaponPivot.add(buildGunModel(currentWeapon));
-        weaponGroup.add(weaponPivot);
+        // 銃モデル
+        const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.5), new THREE.MeshStandardMaterial({color: 0x222222}));
+        gunBody.position.set(0.2, -0.2, -0.4);
+        weaponGroup.add(gunBody);
         scene.add(weaponGroup);
 
-        const tracers = [], enemies = [];
+        const enemies = [], tracers = [];
 
+        // --- 敵のスポーン ---
         function spawnEnemy() {
-            if (enemies.length >= MAX_ENEMIES) return;
-            const isElite = Math.random() < 0.15; // 15%でエリート
-            const size = isElite ? 1.2 : 0.8;
+            if (enemies.length > 30) return;
+            const rand = Math.random();
+            let type = { color: 0xff0000, hp: 100, speed: 0.08, scale: 1, name: "NORMAL" };
+            
+            if (rand < 0.1) type = { color: 0xffffff, hp: 600, speed: 0.03, scale: 1.5, name: "PHANTOM" };
+            else if (rand < 0.25) type = { color: 0xffff00, hp: 50, speed: 0.22, scale: 0.7, name: "SPRINTER" };
+            else if (rand < 0.4) type = { color: 0x00aaff, hp: 300, speed: 0.06, scale: 1.2, name: "ELITE" };
+
             const e = new THREE.Mesh(
-                new THREE.CapsuleGeometry(0.5 * size, 1 * size, 4, 8), 
-                new THREE.MeshStandardMaterial({ color: isElite ? 0x3366ff : 0xcc3333, emissive: isElite ? 0x112255 : 0x000000 })
+                new THREE.BoxGeometry(0.8 * type.scale, 1.8 * type.scale, 0.8 * type.scale),
+                new THREE.MeshStandardMaterial({ color: type.color, emissive: type.color, emissiveIntensity: 0.2 })
             );
             
-            let ex, ez;
-            do {
-                ex = (Math.random() - 0.5) * (STAGE_SIZE - 20);
-                ez = (Math.random() - 0.5) * (STAGE_SIZE - 20);
-            } while (new THREE.Vector2(ex, ez).distanceTo(new THREE.Vector2(camera.position.x, camera.position.z)) < 20);
-            
-            e.position.set(ex, 1 * size, ez);
-            e.userData = { hp: isElite ? 400 : 100, lastAtk: 0, isElite: isElite };
+            const ang = Math.random() * Math.PI * 2;
+            const dist = 30 + Math.random() * 20;
+            e.position.set(camera.position.x + Math.cos(ang)*dist, (1.8*type.scale)/2, camera.position.z + Math.sin(ang)*dist);
+            e.userData = { ...type, lastAtk: 0 };
             scene.add(e);
             enemies.push(e);
         }
 
-        function showHitMarker() {
-            const marker = document.getElementById('hit-marker');
-            marker.style.display = 'block';
-            setTimeout(() => marker.style.display = 'none', 100);
-        }
-
-        function triggerMuzzleFlash() {
-            muzzleFlashLight.intensity = 15;
-            muzzleFlashMesh.visible = true;
-            setTimeout(() => {
-                muzzleFlashLight.intensity = 0;
-                muzzleFlashMesh.visible = false;
-            }, 40);
-        }
-
-        function checkUpgrade() {
-            if (score >= nextUpgradeScore) {
-                currentWeapon.lv++;
-                currentWeapon.damage += 5;
-                currentWeapon.maxAmmo += 2;
-                currentWeapon.recoil *= 0.9;
-                nextUpgradeScore += 750;
-                document.getElementById('log').innerText = `UPGRADED: ${currentWeapon.name} Lv.${currentWeapon.lv}!`;
-                updateUI();
-            }
+        // --- 武器強化システム ---
+        function upgradeWeapon() {
+            currentWeapon.lv++;
+            currentWeapon.damage += 20; // 威力大幅アップ
+            currentWeapon.rpm += 150;    // 連射速度大幅アップ
+            currentWeapon.maxAmmo += 10; // 装弾数アップ
+            currentWeapon.ammo = currentWeapon.maxAmmo;
+            nextUpgradeScore += 1000;
+            
+            document.getElementById('weapon-lv').innerText = `Lv.${currentWeapon.lv} SUPERCHARGED`;
+            updateUI();
         }
 
         function fire() {
             if (isReloading || currentWeapon.ammo <= 0 || playerHealth <= 0) return;
             const now = Date.now();
             if (now - lastFireTime < (60000 / currentWeapon.rpm)) return;
-            
-            currentWeapon.ammo--; 
+
+            currentWeapon.ammo--;
             lastFireTime = now;
-            triggerMuzzleFlash();
             updateUI();
-            
-            targetRecoilX += currentWeapon.recoil;
-            weaponPivot.position.z += 0.15; weaponPivot.rotation.x -= 0.1;
 
+            const pellets = currentWeapon.pellets || 1;
             const ray = new THREE.Raycaster();
-            let hitAnything = false;
+            let hit = false;
 
-            for (let i = 0; i < currentWeapon.pellets; i++) {
+            for(let i=0; i<pellets; i++) {
                 ray.setFromCamera(new THREE.Vector2(0,0), camera);
                 ray.ray.direction.x += (Math.random()-0.5) * currentWeapon.spread;
                 ray.ray.direction.y += (Math.random()-0.5) * currentWeapon.spread;
 
-                const muz = new THREE.Vector3().setFromMatrixPosition(muzzleFlashMesh.matrixWorld);
-                const tar = ray.ray.origin.clone().add(ray.ray.direction.clone().multiplyScalar(100));
-                const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 2), new THREE.MeshBasicMaterial({ color: 0xffcc00 }));
-                mesh.position.copy(muz); mesh.lookAt(tar); scene.add(mesh);
-                tracers.push({ mesh, life: 5 });
-
-                const hits = ray.intersectObjects(enemies);
-                if(hits.length > 0) {
-                    hitAnything = true;
-                    const e = hits[0].object;
+                const intersects = ray.intersectObjects(enemies);
+                if (intersects.length > 0) {
+                    const e = intersects[0].object;
                     e.userData.hp -= currentWeapon.damage;
-                    if(e.userData.hp <= 0) {
-                        score += e.userData.isElite ? 300 : 100;
+                    hit = true;
+                    if (e.userData.hp <= 0) {
+                        score += (e.userData.name === "NORMAL" ? 100 : 250);
                         scene.remove(e);
                         enemies.splice(enemies.indexOf(e), 1);
-                        checkUpgrade();
+                        if(score >= nextUpgradeScore) upgradeWeapon();
                     }
                 }
             }
-            if(hitAnything) showHitMarker();
+            if(hit) {
+                document.getElementById('hit-marker').style.display = 'block';
+                setTimeout(()=> document.getElementById('hit-marker').style.display = 'none', 50);
+            }
             if(currentWeapon.ammo === 0) reload();
         }
 
         function reload() {
-            if(isReloading || currentWeapon.ammo === currentWeapon.maxAmmo) return;
             isReloading = true;
             document.getElementById('reload-msg').style.display = 'block';
             setTimeout(() => {
-                currentWeapon.ammo = currentWeapon.maxAmmo; 
+                currentWeapon.ammo = currentWeapon.maxAmmo;
                 isReloading = false;
                 document.getElementById('reload-msg').style.display = 'none';
                 updateUI();
             }, currentWeapon.reloadTime);
         }
 
-        function switchWeapon(key) {
-            isReloading = false;
-            document.getElementById('reload-msg').style.display = 'none';
-            currentWeapon = WEAPONS[key]; 
-            buildGunModel(currentWeapon);
-            isAds = false;
-            updateScope(); 
-            updateUI();
-        }
-
-        function updateScope() {
-            camera.fov = isAds ? currentWeapon.adsFov : 75;
-            camera.updateProjectionMatrix();
-            const scopeOverlay = document.getElementById('scope-overlay');
-            if (isAds && currentWeapon.name === 'AWM') {
-                scopeOverlay.style.display = 'block';
-                gunContainer.visible = false;
-            } else {
-                scopeOverlay.style.display = 'none';
-                gunContainer.visible = true;
-                gunContainer.position.x = isAds ? 0 : 0.3;
-                gunContainer.position.y = isAds ? -0.12 : -0.25;
-            }
-        }
-
         function updateUI() {
-            document.getElementById('current-ammo').innerText = currentWeapon.ammo;
-            document.getElementById('max-ammo').innerText = currentWeapon.maxAmmo;
-            document.getElementById('weapon-name').innerText = currentWeapon.name;
-            document.getElementById('weapon-lv').innerText = `Lv.${currentWeapon.lv} Tactical`;
             document.getElementById('score').innerText = score;
             document.getElementById('health').innerText = Math.max(0, playerHealth);
+            document.getElementById('current-ammo').innerText = currentWeapon.ammo;
+            document.getElementById('max-ammo').innerText = currentWeapon.maxAmmo;
+            document.getElementById('upgrade-info').innerText = `Next: ${nextUpgradeScore} pts`;
         }
 
-        // --- 操作系 ---
+        // --- ループ & 入力 ---
         const keys = {};
-        let lastTouchX = 0, lastTouchY = 0;
-
-        window.addEventListener('keydown', (e) => {
-            keys[e.code] = true;
-            if(e.code === 'Space') { e.preventDefault(); fire(); }
-            if(e.code === 'Enter') { e.preventDefault(); isAds = !isAds; updateScope(); }
-            if(e.code === 'KeyR') reload();
-            if(e.code === 'Digit1') switchWeapon('S12K');
-            if(e.code === 'Digit2') switchWeapon('XM7');
-            if(e.code === 'Digit3') switchWeapon('AWM');
-            if(e.code === 'Digit4') switchWeapon('UZI');
-        });
+        window.addEventListener('keydown', (e) => keys[e.code] = true);
         window.addEventListener('keyup', (e) => keys[e.code] = false);
-
         window.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement) {
-                const sens = isAds ? (currentWeapon.adsFov / 75) * 0.002 : 0.0022;
-                camera.rotation.y -= e.movementX * sens;
-                camera.rotation.x -= e.movementY * sens;
-                camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x));
+                camera.rotation.y -= e.movementX * 0.002;
+                camera.rotation.x -= e.movementY * 0.002;
+                camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
             }
         });
-
-        window.addEventListener('touchstart', (e) => {
-            const t = e.touches[0];
-            lastTouchX = t.clientX; lastTouchY = t.clientY;
-        }, {passive: false});
-
-        window.addEventListener('touchmove', (e) => {
-            const t = e.touches[0];
-            const dx = t.clientX - lastTouchX;
-            const dy = t.clientY - lastTouchY;
-            const sens = isAds ? (currentWeapon.adsFov / 75) * 0.006 : 0.008;
-            camera.rotation.y -= dx * sens;
-            camera.rotation.x -= dy * sens;
-            camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x));
-            lastTouchX = t.clientX; lastTouchY = t.clientY;
-            e.preventDefault();
-        }, {passive: false});
 
         document.getElementById('click-to-start').addEventListener('click', function() {
             this.style.display = 'none';
-            if (navigator.maxTouchPoints <= 1) document.body.requestPointerLock();
+            document.body.requestPointerLock();
         });
 
-        // --- ループ ---
         function animate() {
             requestAnimationFrame(animate);
             const now = Date.now();
 
-            // 難易度調整: スコアに応じてスポーン間隔短縮
-            const currentSpawnInterval = Math.max(600, spawnInterval - (score / 50));
-            if (now - lastSpawnTime > currentSpawnInterval) {
+            // スポーン
+            if (now - lastSpawnTime > Math.max(500, 2000 - score/10)) {
                 spawnEnemy();
                 lastSpawnTime = now;
             }
 
-            if (now - lastFireTime > 100) targetRecoilX *= 0.7;
-            camera.rotation.x += targetRecoilX * 0.1;
-            targetRecoilX *= 0.9;
+            // 移動
+            const move = new THREE.Vector3();
+            if(keys['KeyW']) move.z -= 1; if(keys['KeyS']) move.z += 1;
+            if(keys['KeyA']) move.x -= 1; if(keys['KeyD']) move.x += 1;
+            move.applyQuaternion(camera.quaternion).setY(0).normalize().multiplyScalar(0.15);
+            camera.position.add(move);
+            camera.position.y = 1.6;
 
-            weaponPivot.position.lerp(new THREE.Vector3(0,0,0), 0.2);
-            weaponPivot.rotation.x *= 0.8;
+            // 武器位置更新
             weaponGroup.position.copy(camera.position);
             weaponGroup.quaternion.copy(camera.quaternion);
 
-            for(let i=tracers.length-1; i>=0; i--) {
-                tracers[i].mesh.translateZ(5); tracers[i].life--;
-                if(tracers[i].life <= 0) { scene.remove(tracers[i].mesh); tracers.splice(i,1); }
-            }
+            if(keys['Space']) fire();
 
-            // 移動
-            const s = 0.16;
-            const moveDir = new THREE.Vector3();
-            if(keys['KeyW']) moveDir.z -= 1;
-            if(keys['KeyS']) moveDir.z += 1;
-            if(keys['KeyA']) moveDir.x -= 1;
-            if(keys['KeyD']) moveDir.x += 1;
-            moveDir.applyQuaternion(camera.quaternion);
-            moveDir.y = 0;
-            camera.position.add(moveDir.normalize().multiplyScalar(s));
-            
-            // 範囲制限
-            camera.position.x = Math.max(-STAGE_SIZE/2+3, Math.min(STAGE_SIZE/2-3, camera.position.x));
-            camera.position.z = Math.max(-STAGE_SIZE/2+3, Math.min(STAGE_SIZE/2-3, camera.position.z));
-            camera.position.y = 1.6;
-
+            // 敵の挙動
             enemies.forEach(e => {
-                const v = new THREE.Vector3().subVectors(camera.position, e.position);
-                v.y = 0;
-                // スコアに応じて敵が加速
-                const speed = (e.userData.isElite ? 0.08 : 0.07) + (score * 0.00001);
-                if(v.length() > 1.5) e.translateOnAxis(v.normalize(), speed);
-                else if(playerHealth > 0 && now - e.userData.lastAtk > 800) {
-                    playerHealth -= e.userData.isElite ? 25 : 10; 
-                    e.userData.lastAtk = now; updateUI();
-                    if(playerHealth <= 0) { alert("MISSION FAILED. SCORE: " + score); location.reload(); }
-                }
+                const toPlayer = new THREE.Vector3().subVectors(camera.position, e.position).setY(0);
+                const dist = toPlayer.length();
+                e.translateOnAxis(toPlayer.normalize(), e.userData.speed);
                 e.lookAt(camera.position.x, e.position.y, camera.position.z);
+
+                if (dist < 1.5 && now - e.userData.lastAtk > 1000) {
+                    playerHealth -= 10;
+                    e.userData.lastAtk = now;
+                    updateUI();
+                    if(playerHealth <= 0) { alert("DEAD. SCORE: " + score); location.reload(); }
+                }
             });
 
             renderer.render(scene, camera);
         }
 
-        spawnEnemy(); updateUI(); animate();
+        animate();
     </script>
 </body>
 </html>
